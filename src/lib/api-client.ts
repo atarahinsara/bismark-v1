@@ -258,3 +258,101 @@ export const warehousesApi = {
   createZone: (warehouseId: string, data: Partial<WarehouseZone>) =>
     request<{ data: WarehouseZone }>(`/warehouses/${warehouseId}/zones`, { method: 'POST', body: JSON.stringify(data) }),
 }
+
+// ============================================================
+// Stock Items + Ledger (Sprint 2.2B — LAW-05 Ledger Pattern)
+// ============================================================
+
+export interface StockItem {
+  id: string
+  warehouseId: string
+  warehouseName: string | null
+  warehouseCode: string | null
+  locationId: string | null
+  locationPath: string | null
+  productId: string
+  productInstanceId: string | null
+  batchNumber: string | null
+  reservedQuantity: number
+  status: string
+  receivedDate: string | null
+  expiryDate: string | null
+  lastTransactionAt: string | null
+  // Derived from ledger (LAW-05)
+  onHandQuantity?: number
+  availableQuantity?: number
+  isAvailable?: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface InventoryTransaction {
+  id: string
+  transactionNumber: string
+  transactionType: 'IN' | 'OUT' | 'TRANSFER' | 'ADJUSTMENT' | 'COUNT' | 'RESERVATION' | 'RELEASE'
+  stockItemId: string
+  productId: string
+  productInstanceId: string | null
+  fromWarehouseId: string | null
+  toWarehouseId: string | null
+  quantity: number
+  unitCost: number | null
+  reason: string | null
+  referenceType: string | null
+  referenceId: string | null
+  occurredAt: string
+  createdAt: string
+}
+
+export interface StockReservation {
+  id: string
+  reservationNumber: string
+  stockItemId: string
+  productId: string
+  warehouseId: string
+  reservedQuantity: number
+  reservationType: string
+  referenceType: string | null
+  referenceId: string | null
+  reservedAt: string
+  expiresAt: string
+  releasedAt: string | null
+  consumedAt: string | null
+  status: string
+}
+
+export const stockItemsApi = {
+  list: (page = 1, perPage = 20, filters: { warehouseId?: string; productId?: string } = {}) =>
+    request<PaginatedResponse<StockItem>>(
+      `/stock-items?page=${page}&per_page=${perPage}${filters.warehouseId ? `&warehouse_id=${filters.warehouseId}` : ''}${filters.productId ? `&product_id=${filters.productId}` : ''}`,
+    ),
+  getBalance: (id: string) =>
+    request<{ data: StockItem & { transactionCount: number; lastTransactionNumber: string | null } }>(`/stock-items/${id}/balance`),
+  create: (data: Partial<StockItem>) =>
+    request<{ data: StockItem }>(`/stock-items`, { method: 'POST', body: JSON.stringify(data) }),
+}
+
+export const inventoryTransactionsApi = {
+  list: (page = 1, perPage = 20, filters: { stockItemId?: string; productId?: string; transactionType?: string } = {}) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (filters.stockItemId) params.set('stock_item_id', filters.stockItemId)
+    if (filters.productId) params.set('product_id', filters.productId)
+    if (filters.transactionType) params.set('transaction_type', filters.transactionType)
+    return request<PaginatedResponse<InventoryTransaction>>(`/inventory-transactions?${params}`)
+  },
+  create: (data: Partial<InventoryTransaction>) =>
+    request<{ data: InventoryTransaction }>(`/inventory-transactions`, { method: 'POST', body: JSON.stringify(data) }),
+}
+
+export const stockReservationsApi = {
+  list: (page = 1, perPage = 20, filters: { status?: string; stockItemId?: string } = {}) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (filters.status) params.set('status', filters.status)
+    if (filters.stockItemId) params.set('stock_item_id', filters.stockItemId)
+    return request<PaginatedResponse<StockReservation>>(`/stock-reservations?${params}`)
+  },
+  create: (data: Partial<StockReservation>) =>
+    request<{ data: StockReservation }>(`/stock-reservations`, { method: 'POST', body: JSON.stringify(data) }),
+  release: (id: string) =>
+    request<{ data: { id: string; status: string } }>(`/stock-reservations/${id}/release`, { method: 'POST', body: '{}' }),
+}

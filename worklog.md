@@ -659,3 +659,38 @@ Stage Summary:
 - 3 Critical + LAW-04 همه اعمال شدند
 - BusinessCodeGenerator: Tenant-Scoped + Repository pattern + Concurrency lock
 - آماده Sprint 2.2B (Stock Item + Stock Balance)
+
+---
+
+Task ID: 24
+Agent: Main (Software Company / Architect)
+Task: Sprint 2.2B — Ledger-Based Inventory + LAW-05
+
+Work Log:
+- پذیرش 6 الزام کاربر + LAW-05:
+  1. StockItem بدون on_hand_quantity (Ledger = Source of Truth)
+  2. InventoryTransaction به‌عنوان Source of Truth (IN/OUT/TRANSFER/ADJUSTMENT/RESERVATION/RELEASE/COUNT)
+  3. StockReservation مستقل (نه داخل StockItem)
+  4. LAW-04: Inventory از IProductQueryService استفاده کند (نه ProductRepository)
+  5. Serial + Non-Serial پشتیبانی
+  6. Generated Columns: available_quantity/is_available فقط؛ stock_value نه (FIFO/LIFO/Moving Average آینده)
+  7. LAW-05: هیچ Context نگهداری Quantity تجمیعی به‌عنوان Source of Truth ندارد
+- طراحی Prisma schema با Ledger Pattern:
+  • StockItem (بدون on_hand_quantity — فقط metadata + reserved + available generated)
+  • InventoryTransaction (append-only ledger — Source of Truth)
+  • StockBalance (snapshot — مشتق‌شده از Ledger)
+  • StockReservation (مستقل aggregate)
+- افزودن LAW-05 به Shared Kernel
+- ساخت API routes:
+  • /api/v1/stock-items (CRUD)
+  • /api/v1/inventory-transactions (POST = append to ledger)
+  • /api/v1/stock-items/{id}/balance (محاسبه از Ledger)
+  • /api/v1/stock-reservations (CRUD + release/consume)
+- ساخت InventoryLedgerView UI با real API
+- تست با curl
+
+Stage Summary:
+- LAW-05 اضافه شد (ADR-020)
+- Sprint 2.2B: ✅ تکمیل شد با Ledger Pattern
+- Inventory: Ledger-based (immutable transactions + derived balances)
+- آماده Sprint 2.2C (Inventory Transaction + Transfer)

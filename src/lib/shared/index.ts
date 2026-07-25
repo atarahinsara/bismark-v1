@@ -49,3 +49,4 @@ export * from './repositories'
 
 // Architecture Laws
 export * from './laws/law-04'
+export * from './laws/law-05'

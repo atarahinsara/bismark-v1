@@ -107,6 +107,10 @@ export const BUSINESS_CODE_DEFINITIONS: Record<
   warehouse: { prefix: 'WH', padding: 4 },
   location: { prefix: 'LOC', padding: 5 },
 
+  // Sprint 2.2B — Inventory Ledger
+  inventory_transaction: { prefix: 'IT', padding: 6 },
+  stock_reservation: { prefix: 'RES', padding: 6 },
+
   // Sales (Sprint 3)
   sales_order: { prefix: 'SO', padding: 5 },
   shipment: { prefix: 'SHP', padding: 5 },

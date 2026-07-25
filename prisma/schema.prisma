@@ -339,6 +339,7 @@ model Warehouse {
 
   zones           WarehouseZone[]
   locations       Location[]
+  stockItems      StockItem[]
 
   @@unique([tenantId, code])
   @@index([tenantId, warehouseType])
@@ -387,6 +388,7 @@ model Location {
   deletedAt    DateTime?
 
   bins         Bin[]
+  stockItems   StockItem[]
 
   @@unique([warehouseId, code])
   @@index([parentId])
@@ -408,4 +410,126 @@ model Bin {
 
   @@index([warehouseId])
   @@map("bins")
+}
+
+// ============================================================
+// INVENTORY CONTEXT (Sprint 2.2B) — Ledger Pattern + LAW-05
+// ============================================================
+// CRITICAL: StockItem has NO on_hand_quantity column.
+// All quantities are derived from InventoryTransaction ledger.
+// ============================================================
+
+model StockItem {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  warehouseId         String
+  warehouse           Warehouse @relation(fields: [warehouseId], references: [id])
+  locationId          String?
+  location            Location? @relation(fields: [locationId], references: [id])
+  binId               String?
+  productId           String   // FK to Product (loose, cross-context — LAW-04)
+  productInstanceId   String?  // for serialized products (1:1 with instance)
+  batchNumber         String?
+  // ❌ NO on_hand_quantity column — LAW-05: derived from InventoryTransaction
+  reservedQuantity    Float    @default(0)
+  // availableQuantity is NOT stored — computed on read from ledger
+  status              String   @default("available") // available|damaged|quarantine|expired
+  receivedDate        DateTime?
+  expiryDate          DateTime?
+  lastTransactionAt   DateTime?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  transactions        InventoryTransaction[]
+  reservations        StockReservation[]
+  balance             StockBalance?
+
+  @@unique([tenantId, warehouseId, productId, productInstanceId, batchNumber])
+  @@index([tenantId, productId, warehouseId])
+  @@index([productInstanceId])
+  @@map("stock_items")
+}
+
+model InventoryTransaction {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  transactionNumber   String   // business code: IT-1403-00001
+  transactionType     String   // IN|OUT|TRANSFER|ADJUSTMENT|RESERVATION|RELEASE|COUNT
+  stockItemId         String
+  stockItem           StockItem @relation(fields: [stockItemId], references: [id])
+  productId           String
+  productInstanceId   String?
+  fromWarehouseId     String?
+  fromLocationId      String?
+  toWarehouseId       String?
+  toLocationId        String?
+  batchNumber         String?
+  quantity            Float    // positive for IN, negative for OUT
+  unitCost            Float?
+  // ❌ NO totalCost stored as generated — pricing method (FIFO/LIFO/AVG) varies
+  reason              String?
+  referenceType       String?  // purchase_order|sales_order|transfer|count|adjustment
+  referenceId         String?
+  performedBy         String?
+  occurredAt          DateTime @default(now())
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  @@unique([tenantId, transactionNumber])
+  @@index([tenantId, occurredAt])
+  @@index([stockItemId, occurredAt])
+  @@index([productId, occurredAt])
+  @@index([referenceType, referenceId])
+  @@map("inventory_transactions")
+}
+
+model StockBalance {
+  // Snapshot — explicitly marked as DERIVED (LAW-05)
+  id                  String   @id @default(cuid())
+  tenantId            String
+  stockItemId         String   @unique
+  stockItem           StockItem @relation(fields: [stockItemId], references: [id])
+  onHandQuantity      Float    @default(0) // DERIVED from ledger
+  reservedQuantity    Float    @default(0)
+  availableQuantity   Float    @default(0) // DERIVED: on_hand - reserved
+  lastTransactionId   String?
+  snapshotAt          DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("stock_balances")
+}
+
+model StockReservation {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  reservationNumber   String   // business code: RES-1403-00001
+  stockItemId         String
+  stockItem           StockItem @relation(fields: [stockItemId], references: [id])
+  productId           String
+  productInstanceId   String?
+  warehouseId         String
+  reservedQuantity    Float
+  reservationType     String   // sales_order|service_request|transfer|manual
+  referenceType       String?
+  referenceId         String?
+  reservedBy          String?
+  reservedForPartyId  String?
+  reservedAt          DateTime @default(now())
+  expiresAt           DateTime
+  releasedAt          DateTime?
+  releasedBy          String?
+  releaseReason       String?
+  consumedAt          DateTime?
+  status              String   @default("active") // active|released|consumed|expired
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([tenantId, reservationNumber])
+  @@index([stockItemId, status])
+  @@index([referenceType, referenceId])
+  @@index([status, expiresAt])
+  @@map("stock_reservations")
 }
