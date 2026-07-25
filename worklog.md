@@ -1231,3 +1231,44 @@ Stage Summary:
 - Financial Context کامل: Accounting Foundation + GL + Closing + AR/AP + Tax + Statements
 - Sprint 6 (Financial) کامل: 6.1 + 6.2 + 6.3 + 6.4 + 6.5
 - آماده Sprint 7 (Workflow + Rules + Notification)
+
+---
+
+Task ID: 40
+Agent: Main (Software Company / Architect)
+Task: LAW-49/50/51 + Sprint 7.1 (Workflow Engine)
+
+Work Log:
+- پذیرش 3 قانون نهایی Workflow/Rule/Notification:
+  • LAW-49: Only Workflow Engine May Change Workflow State
+  • LAW-50: Business Rules Are Declarative And Versioned
+  • LAW-51: Notifications Are Event-Driven And Never Sent Directly From Domain Logic
+- Prisma models (3 models): WorkflowDefinition, WorkflowInstance, WorkflowHistory
+- API routes (5 endpoints):
+  • GET/POST /workflow/definitions (create with states + transitions validation)
+  • POST /workflow/definitions/{id}/publish (activate, deactivate previous version)
+  • GET/POST /workflow/instances (list + start new instance — LAW-49)
+  • GET /workflow/instances/{id} (detail with history + available transitions)
+  • POST /workflow/instances/{id}/transition (LAW-49: only WF engine changes state, validates transition, guard, records history, marks completed if final)
+  • POST /workflow/instances/{id}/cancel (cancel running instance)
+- Workflow Definition validation:
+  • Exactly one initial state
+  • At least one final state
+  • No self-transitions (from ≠ to)
+- Workflow Instance lifecycle:
+  • Start → running (initial state)
+  • Transition → validate (fromState matches, transition exists, guard)
+  • Transition → update state + record history + outbox event
+  • Final state → status = 'completed'
+  • Cancel → status = 'cancelled'
+- LAW-07: Optimistic Locking on instance transitions
+- LAW-06: Idempotency on all POST endpoints
+- LAW-08: Outbox events (workflow.started, workflow.transitioned, workflow.completed, workflow.cancelled, workflow.published)
+- Tests: 68/68 passing
+- Lint: 0 errors
+
+Stage Summary:
+- LAW-49/50/51 اضافه شدند (ADR-064, ADR-065, ADR-066)
+- Sprint 7.1: ✅ Complete (Workflow Engine)
+- Total Architecture Laws: ۵۱ (نهایی)
+- آماده Sprint 7.2 (Rule Engine)

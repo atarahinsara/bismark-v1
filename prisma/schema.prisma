@@ -2063,3 +2063,79 @@ model TaxPosting {
   @@index([taxCalculationId])
   @@map("tax_postings")
 }
+
+// ============================================================
+// SPRINT 7.1 — WORKFLOW ENGINE
+// ============================================================
+// LAW-49: Only Workflow Engine May Change Workflow State
+// ============================================================
+
+model WorkflowDefinition {
+  id              String   @id @default(cuid())
+  tenantId        String
+  key             String   // e.g., 'sales_order_approval', 'warranty_claim'
+  name            String
+  entityType      String   // what entity this WF runs on (sales_order, warranty_claim, etc.)
+  version         Int      @default(1)
+  isActive        Boolean  @default(true)
+  publishedAt     DateTime?
+  description     String?
+  states          Json     // [{ key, name, isInitial, isFinal, metadata }]
+  transitions     Json     // [{ key, fromState, toState, triggerType, guardRuleSetId, requiredPermission, metadata }]
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  instances       WorkflowInstance[]
+
+  @@unique([tenantId, key, version])
+  @@index([tenantId, key, isActive])
+  @@map("workflow_definitions")
+}
+
+model WorkflowInstance {
+  id              String   @id @default(cuid())
+  tenantId        String
+  definitionId    String
+  definition      WorkflowDefinition @relation(fields: [definitionId], references: [id])
+  definitionKey   String
+  definitionVersion Int
+  entityType      String
+  entityId        String
+  currentStateKey String
+  status          String   @default("running") // running|completed|cancelled
+  startedBy       String?
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelledBy     String?
+  cancelReason    String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07: Optimistic Lock
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  history         WorkflowHistory[]
+
+  @@index([entityType, entityId])
+  @@index([tenantId, status])
+  @@map("workflow_instances")
+}
+
+model WorkflowHistory {
+  id              String   @id @default(cuid())
+  tenantId        String
+  instanceId      String
+  instance        WorkflowInstance @relation(fields: [instanceId], references: [id])
+  fromState       String?
+  toState         String
+  transitionKey   String?
+  changedBy       String?
+  changedAt       DateTime @default(now())
+  reason          String?
+  metadata        Json?
+
+  @@index([instanceId, changedAt])
+  @@map("workflow_history")
+}
