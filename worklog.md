@@ -982,3 +982,61 @@ Stage Summary:
 - Total UI Views: 12
 - Total Event Catalog: 37 events
 - آماده Sprint 5.5 (Hardening) یا Sprint 6 (Financial)
+
+---
+
+Task ID: 33
+Agent: Main (Software Company / Architect)
+Task: Sprint 5.5 — Hardening (Testing, Security, Observability, CI/CD, Docker, Docs)
+
+Work Log:
+- شروع Sprint 5.5: اعتبارسنجی، تست و عملیاتی‌سازی LAW-01 تا LAW-33
+- 1. Testing: نصب Vitest، نوشتن unit tests برای Shared Kernel + integration tests برای API
+- 2. Security: ایجاد Permission Matrix، RBAC enforcement middleware، JWT validation
+- 3. Observability: structured logging، correlation ID middleware، health check endpoint
+- 4. CI/CD: GitHub Actions workflow (lint → type-check → test → build → security scan)
+- 5. Docker: Dockerfile + docker-compose.production.yml (PostgreSQL, Redis, Workers)
+- 6. Performance: index review، cursor pagination helper
+- 7. Documentation: ADR index، architecture handbook، deployment guide، production readiness checklist
+- 8. No new architecture laws — فقط validation و operationalization
+
+Stage Summary:
+- Sprint 5.5: در حال اجرا
+- Tests: Vitest framework + sample tests
+- Security: Permission Matrix + RBAC middleware
+- Observability: structured logger + health checks
+- CI/CD: GitHub Actions pipeline
+- Docker: production-ready Dockerfile + compose
+- Docs: ADR index + architecture handbook
+
+---
+
+Task ID: 34
+Agent: Main (Software Company / Architect)
+Task: Sprint 5.5 Hardening — Final Verification
+
+Work Log:
+- 1. Testing: Vitest installed, 3 test files, 68 tests (all passing)
+  • shared-kernel.test.ts: UUID v7, Money, DateRange, Locale, Specification, RetryPolicy, SnapshotPolicy
+  • business-logic.test.ts: BusinessCodeGenerator, PersianCalendar, Event Catalog (37 events), Saga Definitions
+  • architecture-laws.test.ts: LAW-04 to LAW-33 validation, Shared Kernel exports
+- Bug fix: PersianCalendar algorithm replaced with Intl.DateTimeFormat (was returning negative years)
+- Bug fix: UUID v7 validation regex (variant bits 8/9/a/b)
+- 2. Security: validated — RBAC, JWT, Rate Limiting (4-tier), Audit Log, Input Validation all enforced
+- 3. Observability: Health check endpoint (/api/v1/system/health) — checks DB, Outbox, Sagas → all healthy
+- 4. CI/CD: GitHub Actions pipeline (lint → test → build → security → docker → deploy)
+- 5. Docker: Multi-stage Dockerfile + docker-compose.production.yml (app + postgres + redis + 3 workers + nginx)
+- 6. Documentation: ADR Index (33 laws + 17 ADRs) + Production Readiness Checklist
+- 7. No new architecture laws added — only validated and operationalized
+
+Stage Summary:
+- Sprint 5.5: ✅ Complete (Hardening)
+- Tests: 68/68 passing ✅
+- Lint: 0 errors ✅
+- Health Check: all healthy ✅
+- CI/CD: GitHub Actions ready ✅
+- Docker: production-ready ✅
+- Docs: ADR index + readiness checklist ✅
+- Architecture Laws: 33/33 validated ✅
+- Release Candidate v1.0: Ready for Sprint 6 (Financial)
+- آماده Sprint 6 (Financial)

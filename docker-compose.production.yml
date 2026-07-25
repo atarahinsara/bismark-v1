@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  # ============================================================
+  # BISMARK ERP Web Application
+  # ============================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://bismark:bismark@postgres:5432/bismark?schema=public
+      - REDIS_URL=redis://redis:6379
+      - BISMARK_DEFAULT_TENANT_SLUG=bismark
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================
+  # PostgreSQL Database
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bismark
+      POSTGRES_USER: bismark
+      POSTGRES_PASSWORD: bismark
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bismark -d bismark"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # Redis (Cache + Queue)
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # Outbox Worker (LAW-08)
+  # ============================================================
+  outbox-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: bun run src/workers/outbox-worker.ts
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://bismark:bismark@postgres:5432/bismark?schema=public
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================================
+  # Inbox Worker (LAW-09/26)
+  # ============================================================
+  inbox-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: bun run src/workers/inbox-worker.ts
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://bismark:bismark@postgres:5432/bismark?schema=public
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================================
+  # Snapshot Worker (LAW-10)
+  # ============================================================
+  snapshot-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: bun run src/workers/snapshot-worker.ts
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://bismark:bismark@postgres:5432/bismark?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================================
+  # Nginx Reverse Proxy
+  # ============================================================
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
