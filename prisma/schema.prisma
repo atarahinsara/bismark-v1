@@ -1708,3 +1708,177 @@ model TechnicianAssignment {
   @@index([serviceOrderId])
   @@map("technician_assignments")
 }
+
+// ============================================================
+// SPRINT 6 — FINANCIAL / ACCOUNTING CORE
+// ============================================================
+// LAW-34: Only Financial Context May Post To General Ledger
+// LAW-35: Every Journal Entry Must Balance
+// LAW-36: Closed Fiscal Period Is Immutable
+// ============================================================
+
+model ChartOfAccount {
+  id              String   @id @default(cuid())
+  tenantId        String
+  accountCode     String   // e.g., '1000', '1100', '4000'
+  accountName     String
+  accountNameEn   String?
+  accountType     String   // asset|liability|equity|revenue|expense
+  parentAccountId String?
+  parent          ChartOfAccount? @relation("AccountTree", fields: [parentAccountId], references: [id])
+  children        ChartOfAccount[] @relation("AccountTree")
+  level           Int      @default(0)
+  isPostable      Boolean  @default(true) // leaf vs header
+  isControlAccount Boolean @default(false) // AR, AP control accounts
+  isActive        Boolean  @default(true)
+  openingBalance  Float    @default(0)
+  currencyCode    String   @default("IRR")
+  description     String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  journalLines    JournalEntryLine[]
+
+  @@unique([tenantId, accountCode])
+  @@index([parentAccountId])
+  @@map("chart_of_accounts")
+}
+
+model FiscalYear {
+  id          String   @id @default(cuid())
+  tenantId    String
+  yearCode    String   // e.g., '1403', '1404'
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("open") // open|closed
+  closedAt    DateTime?
+  closedBy    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  periods     FiscalPeriod[]
+
+  @@unique([tenantId, yearCode])
+  @@map("fiscal_years")
+}
+
+model FiscalPeriod {
+  id          String   @id @default(cuid())
+  tenantId    String
+  fiscalYearId String
+  fiscalYear  FiscalYear @relation(fields: [fiscalYearId], references: [id])
+  periodCode  String   // e.g., '1403-Q1', '1403-01'
+  name        String
+  periodType  String   // month|quarter|year
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("open") // open|temporarily_closed|closed
+  closedAt    DateTime?
+  closedBy    String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, periodCode])
+  @@map("fiscal_periods")
+}
+
+model CostCenter {
+  id              String   @id @default(cuid())
+  tenantId        String
+  code            String   // e.g., 'CC-001'
+  name            String
+  parentId        String?
+  parent          CostCenter? @relation("CostCenterTree", fields: [parentId], references: [id])
+  children        CostCenter[] @relation("CostCenterTree")
+  level           Int      @default(0)
+  isActive        Boolean  @default(true)
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([tenantId, code])
+  @@map("cost_centers")
+}
+
+model TaxCode {
+  id              String   @id @default(cuid())
+  tenantId        String
+  code            String   // e.g., 'VAT09', 'EXEMPT'
+  taxType         String   // vat|sales_tax|withholding|exempt
+  name            String
+  ratePercent     Float    // 9.00, 0.00
+  isDefault       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  description     String?
+  validFrom       DateTime @default(now())
+  validTo         DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@map("tax_codes")
+}
+
+model JournalEntry {
+  id              String   @id @default(cuid())
+  tenantId        String
+  entryNumber     String   // business code: JE-1403-00001
+  entryDate       DateTime
+  fiscalPeriodId  String?
+  description     String
+  sourceType      String?  // sales_invoice|payment|credit_note|refund|inventory_adjustment|service_charge|manual
+  sourceId        String?  // ID of the source entity (event aggregateId)
+  status          String   @default("draft") // draft|posted|reversed
+  totalDebit      Float    @default(0)
+  totalCredit     Float    @default(0)
+  // isBalanced = (totalDebit === totalCredit) — validated at application level (LAW-35)
+  reversedById    String?  // reference to reversal JE
+  reversedAt      DateTime?
+  reversalReason  String?
+  postedAt        DateTime?
+  postedBy        String?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  lines           JournalEntryLine[]
+
+  @@unique([tenantId, entryNumber])
+  @@index([tenantId, entryDate])
+  @@index([sourceType, sourceId])
+  @@index([status])
+  @@map("journal_entries")
+}
+
+model JournalEntryLine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  journalEntryId  String
+  journalEntry    JournalEntry @relation(fields: [journalEntryId], references: [id])
+  lineNumber      Int
+  accountId       String
+  account         ChartOfAccount @relation(fields: [accountId], references: [id])
+  costCenterId    String?
+  partyId         String?  // sub-ledger reference (customer/supplier)
+  debitAmount     Float    @default(0)
+  creditAmount    Float    @default(0)
+  description     String?
+  referenceType   String?
+  referenceId     String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@unique([journalEntryId, lineNumber])
+  @@index([accountId])
+  @@index([costCenterId])
+  @@map("journal_entry_lines")
+}

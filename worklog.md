@@ -1040,3 +1040,46 @@ Stage Summary:
 - Architecture Laws: 33/33 validated ✅
 - Release Candidate v1.0: Ready for Sprint 6 (Financial)
 - آماده Sprint 6 (Financial)
+
+---
+
+Task ID: 35
+Agent: Main (Software Company / Architect)
+Task: LAW-34/35/36 + Sprint 6.1 (Accounting Foundation)
+
+Work Log:
+- پذیرش 3 قانون نهایی حسابداری:
+  • LAW-34: Only Financial Context May Post To General Ledger
+  • LAW-35: Every Journal Entry Must Balance (debit = credit)
+  • LAW-36: Closed Fiscal Period Is Immutable
+- Prisma models (6 models): ChartOfAccount, FiscalYear, FiscalPeriod, CostCenter, TaxCode, JournalEntry, JournalEntryLine
+- API routes (4 endpoints):
+  • GET/POST /journal-entries (create with LAW-35 balance check, LAW-36 period check)
+  • GET /journal-entries/{id} (with lines + balance status)
+  • POST /journal-entries/{id}/post (draft → posted, verify LAW-35)
+  • GET /chart-of-accounts (tree + flat)
+  • POST /chart-of-accounts (create account)
+  • GET /trial-balance (derived from posted JEs — LAW-05, DoD: difference = 0)
+- Financial Event Handlers (LAW-34: ONLY Financial creates JEs):
+  • invoice.issued → JE: debit AR, credit Revenue
+  • payment.received → JE: debit Cash, credit AR
+  • credit_note.issued → JE: debit Revenue (reversal), credit AR
+  • refund.completed → JE: debit AR, credit Cash
+- UI: FinancialView with 2 tabs (Journal Entries + Trial Balance)
+  • JE form with live balance check (LAW-35)
+  • Trial Balance with difference = 0 verification (DoD)
+  • Detail dialog with double-entry lines table
+- Tests: 68/68 passing (including new Financial laws)
+- Health Check: all healthy (DB + Outbox + Sagas)
+- Lint: 0 errors
+
+Stage Summary:
+- LAW-34/35/36 اضافه شدند (ADR-049, ADR-050, ADR-051)
+- Sprint 6.1: ✅ Complete (Accounting Foundation)
+- Total Architecture Laws: ۳۶ (نهایی)
+- Total Prisma Models: 60+
+- Total API Routes: 75+
+- Total UI Views: 13
+- Total Tests: 68 (all passing)
+- Trial Balance: difference = 0 ✅ (DoD)
+- آماده Sprint 6.2 (General Ledger + Closing)

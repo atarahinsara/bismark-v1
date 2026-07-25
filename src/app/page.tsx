@@ -7,7 +7,7 @@ import {
   Plus, Edit2, Trash2, Lock, Unlock, Ban, CheckCircle, AlertCircle,
   ChevronLeft, MoreVertical, Mail, Phone, Calendar, User as UserIcon,
   Server, Database, GitBranch, Zap, Check, Filter, Download, Package,
-  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck, Receipt, Undo2, Activity, ShieldCheck, Wrench,
+  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck, Receipt, Undo2, Activity, ShieldCheck, Wrench, Calculator,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,8 +45,9 @@ import { ReturnsView } from '@/components/views/returns-view'
 import { IntegrationView } from '@/components/views/integration-view'
 import { WarrantyView } from '@/components/views/warranty-view'
 import { ServiceView } from '@/components/views/service-view'
+import { FinancialView } from '@/components/views/financial-view'
 
-type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'warranty' | 'service' | 'integration' | 'branches' | 'audit' | 'settings'
+type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'warranty' | 'service' | 'financial' | 'integration' | 'branches' | 'audit' | 'settings'
 
 const userTypeLabels: Record<UserType, string> = {
   customer: 'مشتری',
@@ -221,6 +222,7 @@ const navGroups = [
       { view: 'returns' as View, label: 'مرجوعی و بازپرداخت', icon: Undo2 },
       { view: 'warranty' as View, label: 'گارانتی', icon: ShieldCheck },
       { view: 'service' as View, label: 'خدمات و تعمیرات', icon: Wrench },
+      { view: 'financial' as View, label: 'هسته حسابداری', icon: Calculator },
     ],
   },
   {
@@ -1381,6 +1383,7 @@ export default function Page() {
     returns: 'مرجوعی و بازپرداخت',
     warranty: 'گارانتی',
     service: 'خدمات و تعمیرات',
+    financial: 'هسته حسابداری',
     integration: 'داشبورد یکپارچگی',
     branches: 'شعب',
     audit: 'لاگ ممیزی',
@@ -1415,6 +1418,7 @@ export default function Page() {
           {view === 'returns' && <ReturnsView />}
           {view === 'warranty' && <WarrantyView />}
           {view === 'service' && <ServiceView />}
+          {view === 'financial' && <FinancialView />}
           {view === 'integration' && <IntegrationView />}
           {view === 'branches' && <BranchesView />}
           {view === 'audit' && <AuditView />}
