@@ -328,3 +328,35 @@ Stage Summary:
 - Step 3 Part 3: ۴۸ جدول در ۴ Bounded Context طراحی شد
 - Total ERP تا اینجا: 49 (Part 1) + 30 (Part 2) + 48 (Part 3) = ۱۲۷ جدول
 - در انتظار تأیید کاربر برای Lock نهایی Part 3
+
+---
+
+Task ID: 14
+Agent: Main (Software Company / Architect)
+Task: Step 4 — API Design (complete, all 127 tables → ~600+ endpoints)
+
+Work Log:
+- ثبت تأیید کاربر: Step 3 Part 3 Approved & Locked → Step 3 کامل Locked
+- شروع Step 4 — API Design با ترتیب پیشنهادی کاربر:
+  1. API Standards (REST Convention)
+  2. Authentication & Authorization
+  3. Error Model (RFC7807)
+  4. Pagination / Filtering / Sorting
+  5. Versioning
+  6. CRUD API برای تمام Contextها (127 tables → ~600+ endpoints)
+  7. Command API (action endpoints)
+  8. Query API (complex queries)
+  9. Event API (Webhook)
+  10. OpenAPI 3.1 Specification
+- اعمال تمام قوانین قفل‌شده: LAW-01 (no cross-context JOIN در API responses — استفاده از links/embedded)، LAW-02 (Business Codes در URLs و responses)
+- طراحی Endpoint Catalog برای 13 Bounded Context (9 from Part 1 + 3 from Part 2 + 4 from Part 3، با Business Code در بخش Context)
+- تولید Webhook event catalog
+- تولید OpenAPI 3.1 spec structure
+- آماده ارائه برای تأیید کاربر
+
+Stage Summary:
+- Step 3: ✅ Fully Locked (127 tables, 3 Parts)
+- Step 4: خروجی کامل تولید شد (10 بخش)
+- ~600+ endpoints در 13 Bounded Context
+- Webhook event catalog + OpenAPI 3.1 structure
+- در انتظار تأیید کاربر برای Lock نهایی Step 4
