@@ -79,3 +79,151 @@ Stage Summary:
 - Step 3: در آستانه شروع — DoD تعریف شد
 - Backlog: ۴ مورد Enhancement ثبت شد
 - هنوز هیچ کدی نوشته نشده است (Design-Only mode)
+
+---
+
+Task ID: 4
+Agent: Main (Software Company / Architect)
+Task: Step 3 — Database Design (ERD) for PostgreSQL + Auto-Lock
+
+Work Log:
+- ثبت دو اصلاح معمار: Audit Retention قابل‌تنظیم از Configuration (نه Hard Code)؛ File Backend به‌صورت Interface (Local/MinIO/S3/Azure Blob قابل جایگزینی)
+- تأیید ۱۰ تصمیم معماری Step 3 توسط معمار
+- دستور تمرکز انحصاری بر PostgreSQL و استفاده از قابلیت‌های بومی (UUID v7، JSONB، Partial/GIN Index، CHECK، Generated Column، ENUM، Partitioning)
+- طراحی ERD کامل برای ۴۹ جدول در ۹ Bounded Context + ۳ جدول سیستمی
+- تولید ۱۰ خروجی به ترتیب دستور: Data Dictionary → ERD → Tables → Relationships → Constraints → Indexes → PG Best Practices → Naming Convention → Migration Strategy → DoD
+- اعمال DoD بر Step 3 → تمام معیارها پاس شد → Step 3 Auto-Lock شد
+- ورود مستقیم به Step 4 (API Design) بدون درخواست تأیید مجدد (طبق قانون جدید)
+
+Stage Summary:
+- Step 3: ✅ Auto-Locked (DoD پاس شد: ۴۹ جدول، PK/FK/Index/Constraint کامل، tenant_id روی tenant-scoped، Audit columns، بدون FK چرخه‌ای، ERD تولید شد)
+- دو اصلاح اعمال شد: Audit Retention configurable، File Backend Interface
+- PostgreSQL features استفاده شده: UUID v7، JSONB، ENUM types، Partial Index، GIN Index، CHECK Constraint، Generated Column، Range Partitioning (audit_logs)
+- Naming Convention: snake_case + plural tables + `_id` FK + type-prefixed constraints
+- Migration Strategy: Laravel migrations + numbered + reversible + tenant seed
+- هیچ کدی نوشته نشده (Design-Only، خروجی‌های متنی/DDL-style)
+
+---
+
+Task ID: 5
+Agent: Main (Software Company / Architect)
+Task: Step 4 — API Design + Auto-Lock
+
+Work Log:
+- طراحی کامل API برای ۹ Bounded Context بر اساس ERD Step 3
+- تعریف ۱۲۰+ Endpoint RESTful بر اساس resource convention
+- تعریف Error Model استاندارد RFC 7807 Problem Details
+- تعریف Pagination/Filtering/Sorting استاندارد
+- تعریف Rate Limiting policy
+- تعریف WebSocket events برای In-App Notification و real-time Audit
+- تعریف OpenAPI/Swagger spec structure
+- اعمال DoD بر Step 4 → Auto-Lock شد
+- ورود مستقیم به Step 5 (UI/UX Design)
+
+Stage Summary:
+- Step 4: ✅ Auto-Locked (DoD پاس شد)
+- ۱۲۰+ endpoint، ۱۶ WebSocket event، Error Model یکپارچه
+- API Versioning: /api/v1
+- Auth: Bearer JWT (access + refresh rotation)
+- Rate Limiting: tiered (auth/user/sensitive)
+- هیچ کدی نوشته نشده (Design-Only)
+
+---
+
+Task ID: 6
+Agent: Main (Software Company / Architect)
+Task: Step 5 — UI/UX Design + Auto-Lock
+
+Work Log:
+- طراحی UI/UX برای پلتفرم Web (Next.js) ERP Core
+- تعریف Navigation Structure (sidebar + topbar + breadcrumb)
+- تعریف Design Tokens (color با قاعده no-indigo/blue، typography، spacing، radius)
+- Wireframe ۲۸ صفحه اصلی در ۹ گروه
+- User Flow برای ۶ نقش کلیدی
+- Component Inventory بر اساس shadcn/ui + custom
+- State per Role matrix
+- Responsive Breakpoints (mobile-first)
+- Empty/Loading/Error states تعریف شده
+- اعمال DoD بر Step 5 → Auto-Lock شد
+- ورود مستقیم به Step 6 (Development)
+
+Stage Summary:
+- Step 5: ✅ Auto-Locked (DoD پاس شد)
+- ۲۸ wireframe، ۶ user flow، design tokens، component inventory
+- پالت رنگ: neutral base + emerald accent (طبق قاعده no indigo/blue)
+- RTL support (fa-IR) + LTR (en-US)
+- هیچ کدی نوشته نشده (Design-Only)
+
+---
+
+Task ID: 7
+Agent: Main (Software Company / Architect)
+Task: Step 6 — Development (Laravel Implementation Spec + Skeleton, Design-Only mode)
+
+Work Log:
+- ثبت Critical Note: محیط اجرایی ایجنت Next.js است، Laravel قابل اجرا نیست
+- طبق تصمیم کاربر (گزینه B — Design Only)، تولید spec پیاده‌سازی Laravel فنی به‌جای کد قابل‌اجرا
+- طراحی ساختار پروژه Laravel 12 Modular Monolith (۹ ماژول + Shared Kernel)
+- طراحی Service Layer + Contracts + Repository Pattern برای هر ماژول
+- طراحی Event Bus + Outbox Pattern implementation
+- طراحی Middleware stack (auth, tenant, rbac, feature flag, audit, rate limit)
+- طراحی Migration files (۳۱ فایل طبق Step 3)
+- طراحی key classes و interfaces برای هر ماژول
+- تولید skeleton code نمونه (PHP) برای الگوهای کلیدی
+- اعمال DoD بر Step 6 → Auto-Lock شد
+- ورود مستقیم به Step 7 (Review)
+
+Stage Summary:
+- Step 6: ✅ Auto-Locked (DoD پاس شد در حالت spec)
+- خروجی: Laravel project structure + module skeletons + migration files + middleware + key classes
+- اجرای واقعی: نیاز به محیط Laravel (تیم توسعه پیاده‌سازی می‌کند)
+- Reference impl در Next.js: در Backlog (BL-009) برای تأیید بعدی
+- هیچ کد قابل‌اجرا در محیط فعلی تولید نشد (طبق تصمیم Design-Only)
+
+---
+
+Task ID: 8
+Agent: Main (Software Company / Architect)
+Task: Step 7 — Review + Auto-Lock
+
+Work Log:
+- Code Review: بررسی skeleton و الگوهای معماری (Service Layer، Contracts، Outbox)
+- Security Review: OWASP Top 10، Auth، RBAC، injection، CSRF، XSS
+- Performance Review: queries، indexes، N+1 prevention، caching strategy
+- شناسایی ۳ مورد Critical و ۵ مورد Important
+- رفع Critical issues در spec (نه در کد قابل‌اجرا)
+- ثبت Important issues در Backlog
+- اعمال DoD بر Step 7 → Auto-Lock شد
+- ورود مستقیم به Step 8 (Acceptance)
+
+Stage Summary:
+- Step 7: ✅ Auto-Locked (DoD پاس شد پس از رفع ۳ Critical)
+- Code Review: skeleton Laravel الگوهای درست را دنبال می‌کند
+- Security Review: ۳ مورد بحرانی شناسایی و رفع شد (mass assignment، rate limit bypass، outbox dedup)
+- Performance Review: N+1 prevention، eager loading، cache strategy تعریف شد
+- Backlog: ۵ مورد Performance/Security enhancement ثبت شد
+- آماده Step 8 (Acceptance)
+
+---
+
+Task ID: 9
+Agent: Main (Software Company / Architect)
+Task: Step 8 — Acceptance + Final Delivery
+
+Work Log:
+- تأیید تمام DoD مراحل ۱ تا ۷
+- تولید Deliverable Package نهایی برای تحویل به تیم Laravel
+- تولید Acceptance Checklist
+- تولید Handoff Document با تمام مراجع
+- تولید Backlog نهایی (تمام Enhancementها از تمام Stepها)
+- تولید Risk Register
+- ثبت Sign-off در انتظار کاربر
+
+Stage Summary:
+- Step 8: ✅ Auto-Locked (در حالت Deliverable Package)
+- Phase 1 (ERP Core) Design کامل شد
+- ۸ Step همگی Locked شدند
+- ۴۹ جدول، ۱۵۰ endpoint، ۹ ماژول، ۵۰+ event
+- Deliverable آماده تحویل به تیم Laravel برای پیاده‌سازی
+- هیچ کد قابل‌اجرا در محیط فعلی (طبق تصمیم Design-Only)
+- در انتظار Sign-off نهایی کاربر
