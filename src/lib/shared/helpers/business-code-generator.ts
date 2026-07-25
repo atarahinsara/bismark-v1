@@ -134,6 +134,7 @@ export const BUSINESS_CODE_DEFINITIONS: Record<
   // Service (Sprint 5)
   service_request: { prefix: 'SR', padding: 5 },
   service_order: { prefix: 'RO', padding: 5 },
+  quality_check: { prefix: 'QC', padding: 5 },
 
   // Financial (Sprint 6)
   journal_entry: { prefix: 'JE', padding: 5 },

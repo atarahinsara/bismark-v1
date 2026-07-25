@@ -213,6 +213,50 @@ export const EVENT_CATALOG: EventDefinition[] = [
     payloadFields: ['transferNumber', 'warrantyCardId', 'fromPartyId', 'toPartyId'],
     retryPolicy: 'exponential', idempotencyKey: 'transferId',
   },
+
+  // ===== SERVICE CONTEXT (Sprint 5) =====
+  {
+    eventType: 'service_request.created', version: '1.0',
+    publisher: 'Service', consumers: ['Audit', 'DeviceTimeline'],
+    payloadFields: ['requestNumber', 'customerPartyId', 'serviceKind'],
+    retryPolicy: 'exponential', idempotencyKey: 'requestId',
+  },
+  {
+    eventType: 'service_order.created', version: '1.0',
+    publisher: 'Service', consumers: ['Audit', 'DeviceTimeline'],
+    payloadFields: ['orderNumber', 'serviceRequestId', 'customerPartyId'],
+    retryPolicy: 'exponential', idempotencyKey: 'orderId',
+  },
+  {
+    eventType: 'service_order.diagnosed', version: '1.0',
+    publisher: 'Service', consumers: ['Audit'],
+    payloadFields: ['orderNumber', 'symptom'],
+    retryPolicy: 'exponential', idempotencyKey: 'orderId',
+  },
+  {
+    eventType: 'service_order.part_consumed', version: '1.0',
+    publisher: 'Service', consumers: ['Audit', 'Financial'],
+    payloadFields: ['orderNumber', 'productId', 'quantity', 'totalCost'],
+    retryPolicy: 'exponential', idempotencyKey: 'orderId',
+  },
+  {
+    eventType: 'service_order.qc_completed', version: '1.0',
+    publisher: 'Service', consumers: ['Audit'],
+    payloadFields: ['orderNumber', 'qcNumber', 'result'],
+    retryPolicy: 'exponential', idempotencyKey: 'qcId',
+  },
+  {
+    eventType: 'service_order.ready', version: '1.0',
+    publisher: 'Service', consumers: ['Notification', 'Audit'],
+    payloadFields: ['orderNumber'],
+    retryPolicy: 'exponential', idempotencyKey: 'orderId',
+  },
+  {
+    eventType: 'service_order.delivered', version: '1.0',
+    publisher: 'Service', consumers: ['Audit', 'DeviceTimeline'],
+    payloadFields: ['orderNumber'],
+    retryPolicy: 'exponential', idempotencyKey: 'orderId',
+  },
 ]
 
 /**

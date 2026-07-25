@@ -1484,3 +1484,227 @@ model WarrantyTransfer {
   @@index([warrantyCardId])
   @@map("warranty_transfers")
 }
+
+// ============================================================
+// SPRINT 5 — SERVICE CONTEXT
+// ============================================================
+// LAW-31: No Part Consumption Without Inventory Ledger Event
+// LAW-32: Every Repair Must Pass Quality Control Before Delivery
+// LAW-33: Warranty Approval Creates Service Request Only Through Events
+// ============================================================
+
+model ServiceRequest {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  requestNumber       String   // business code: SR-1403-00001
+  customerPartyId     String   // FK to Party (loose — LAW-04)
+  productInstanceId   String?  // FK to ProductInstance (loose — LAW-04)
+  warrantyCardId      String?
+  warrantyClaimId     String?  // LAW-33: linked from warranty claim event
+  serviceCenterId     String?
+  serviceKind         String   @default("warranty") // warranty|out_of_warranty|paid|recall
+  priority            String   @default("normal") // low|normal|high|urgent|critical
+  status              String   @default("draft") // draft|submitted|validated|service_order|cancelled
+  customerProblem     String
+  customerDescription String?
+  deviceInfo          Json?    // {brand, model, serial, ...}
+  reportedDefect      String?
+  estimatedCompletion DateTime?
+  actualCompletion    DateTime?
+  customerConsent     Boolean  @default(false)
+  serviceOrderId      String?  // link to ServiceOrder once created
+  notes               String?
+  metadata            Json?
+  version             Int      @default(1) // LAW-07
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  @@unique([tenantId, requestNumber])
+  @@index([tenantId, customerPartyId])
+  @@index([tenantId, status])
+  @@index([warrantyClaimId])
+  @@map("service_requests")
+}
+
+model ServiceOrder {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  orderNumber         String   // business code: RO-1403-00001
+  serviceRequestId    String?
+  customerPartyId     String
+  productInstanceId   String?
+  warrantyCardId      String?
+  warrantyClaimId     String?
+  serviceCenterId     String?
+  assignedTechnicianId String? // FK to Party (loose — technicians are parties)
+  serviceKind         String   @default("warranty")
+  status              String   @default("open") // open|diagnosis|waiting_parts|repair|qc|ready|delivered|closed|cancelled
+  createdDate         DateTime @default(now())
+  diagnosisDate       DateTime?
+  repairStartDate     DateTime?
+  repairCompleteDate  DateTime?
+  qcDate              DateTime?
+  readyDate           DateTime?
+  deliveredDate       DateTime?
+  closedDate          DateTime?
+  laborCost           Float    @default(0)
+  partsCost           Float    @default(0)
+  otherCost           Float    @default(0)
+  discountAmount      Float    @default(0)
+  taxAmount           Float    @default(0)
+  totalCost           Float    @default(0)
+  paidAmount          Float    @default(0)
+  currencyCode        String   @default("IRR")
+  notes               String?
+  metadata            Json?
+  version             Int      @default(1) // LAW-07
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  lines               ServiceOrderLine[]
+  parts               ServiceOrderPart[]
+  laborRecords        ServiceOrderLabor[]
+  diagnoses           ServiceDiagnosis[]
+  qcChecks            ServiceQualityCheck[]
+
+  @@unique([tenantId, orderNumber])
+  @@index([serviceRequestId])
+  @@index([tenantId, customerPartyId])
+  @@index([tenantId, status])
+  @@index([assignedTechnicianId])
+  @@map("service_orders")
+}
+
+model ServiceOrderLine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  serviceOrderId  String
+  serviceOrder    ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  lineNumber      Int
+  taskDescription String
+  taskType        String?  // diagnosis|repair|replacement|testing
+  estimatedHours  Float?
+  actualHours     Float?
+  completedAt     DateTime?
+  isCompleted     Boolean  @default(false)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([serviceOrderId, lineNumber])
+  @@map("service_order_lines")
+}
+
+model ServiceDiagnosis {
+  id              String   @id @default(cuid())
+  tenantId        String
+  serviceOrderId  String
+  serviceOrder    ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  technicianPartyId String
+  diagnosisDate   DateTime @default(now())
+  symptom         String
+  rootCause       String?
+  recommendedAction String?
+  estimatedHours  Float?
+  estimatedPartsCost Float?
+  confidenceLevel String?  // low|medium|high
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([serviceOrderId])
+  @@map("service_diagnoses")
+}
+
+model ServiceOrderPart {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  serviceOrderId      String
+  serviceOrder        ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  productId           String   // FK to Product (loose — LAW-04)
+  productInstanceId   String?  // for serialized parts
+  fromWarehouseId     String?
+  fromLocationId      String?
+  quantityUsed        Float    @default(0)
+  unitCost            Float    @default(0)
+  totalCost           Float    @default(0)
+  isWarrantyCovered   Boolean  @default(false)
+  isReturnedPart      Boolean  @default(false)
+  returnedToWarehouseId String?
+  usedAt              DateTime @default(now())
+  notes               String?
+  createdAt           DateTime @default(now())
+
+  @@index([serviceOrderId])
+  @@index([productId])
+  @@map("service_order_parts")
+}
+
+model ServiceOrderLabor {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  serviceOrderId      String
+  serviceOrder        ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  technicianPartyId   String
+  laborType           String   // diagnosis|repair|testing|other
+  hours               Float
+  hourlyRate          Float
+  totalCost           Float
+  isWarrantyCovered   Boolean  @default(false)
+  startedAt           DateTime?
+  endedAt             DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+
+  @@index([serviceOrderId])
+  @@index([technicianPartyId])
+  @@map("service_order_labor")
+}
+
+model ServiceQualityCheck {
+  id              String   @id @default(cuid())
+  tenantId        String
+  qcNumber        String   // business code: QC-1403-00001
+  serviceOrderId  String
+  serviceOrder    ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  inspectorPartyId String?
+  inspectionDate  DateTime @default(now())
+  result          String   // pass|fail|conditional
+  checklist       Json     // {items: [{name, passed, notes}]}
+  defectsFound    String?
+  reworkRequired  Boolean  @default(false)
+  reworkNotes     String?
+  approvedAt      DateTime?
+  approvedBy      String?
+  notes           String?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, qcNumber])
+  @@index([serviceOrderId])
+  @@map("service_quality_checks")
+}
+
+model TechnicianAssignment {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  technicianPartyId   String
+  serviceOrderId      String?
+  serviceCenterId     String?
+  assignmentType      String   @default("primary") // primary|secondary|supervisor
+  status              String   @default("active") // active|completed|reassigned|cancelled
+  assignedAt          DateTime @default(now())
+  assignedBy          String?
+  startTime           DateTime?
+  endTime             DateTime?
+  notes               String?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([technicianPartyId, status])
+  @@index([serviceOrderId])
+  @@map("technician_assignments")
+}

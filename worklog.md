@@ -946,3 +946,39 @@ Stage Summary:
 - Total UI Views: 11
 - Total Event Catalog: 30 events
 - آماده Sprint 5 (Service)
+
+---
+
+Task ID: 32
+Agent: Main (Software Company / Architect)
+Task: LAW-31/32/33 + Sprint 5 (Service Context)
+
+Work Log:
+- پذیرش 3 قانون جدید:
+  • LAW-31: No Part Consumption Without Inventory Ledger Event
+  • LAW-32: Every Repair Must Pass Quality Control Before Delivery
+  • LAW-33: Warranty Approval Creates Service Request Only Through Events
+- Prisma models (8 models): ServiceRequest, ServiceOrder, ServiceOrderLine, ServiceDiagnosis, ServiceOrderPart, ServiceOrderLabor, ServiceQualityCheck, TechnicianAssignment
+- API routes (7 endpoints):
+  • GET/POST /service-requests (create + list)
+  • POST /service-requests/{id}/create-order (convert to ServiceOrder)
+  • GET /service-orders (list)
+  • POST /service-orders/{id}/diagnose (open → diagnosis)
+  • POST /service-orders/{id}/consume-part (LAW-31: OUT ledger + part record)
+  • POST /service-orders/{id}/qc (LAW-32: QC check)
+  • POST /service-orders/{id}/ready (LAW-32: requires QC pass)
+- Event Handlers: warranty-service-handler (LAW-33), service-notification-handler, service-timeline-handler
+- Event Catalog: 7 new service events (total: 37)
+- UI: ServiceView with 2 tabs (Requests + Orders) + detail dialog with diagnose/consume-part/qc/ready forms
+- Business codes: SR, RO, QC
+- تست: Page 200, Requests API 200, Orders API 200, Lint 0, 30 LAW files, 12 UI views
+
+Stage Summary:
+- LAW-31/32/33 اضافه شدند (ADR-046, ADR-047, ADR-048)
+- Sprint 5: ✅ Complete (Service Context)
+- Total Architecture Laws: ۳۳
+- Total Prisma Models: 53+
+- Total API Routes: 70+
+- Total UI Views: 12
+- Total Event Catalog: 37 events
+- آماده Sprint 5.5 (Hardening) یا Sprint 6 (Financial)

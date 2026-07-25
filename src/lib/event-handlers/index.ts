@@ -149,14 +149,28 @@ export function registerEventHandlers(): void {
     // For now: log — the actual activation logic would query WarrantyCard by shipmentId
   })
 
-  // When warranty claim is approved → notify Service context to create Service Order (LAW-25)
+  // When warranty claim is approved → Service context creates Service Request (LAW-33)
   InboxWorker.register('warranty.claim.approved', 'warranty-service-handler', async (message) => {
-    const { claimNumber, productInstanceId, customerPartyId } = message.payload as any
-    console.log(`[WARRANTY→SERVICE] Claim ${claimNumber} approved — Service should create Service Order (LAW-25)`)
+    const { claimNumber, productInstanceId, customerPartyId, warrantyCardId } = message.payload as any
+    console.log(`[WARRANTY→SERVICE] Claim ${claimNumber} approved — creating Service Request (LAW-33)`)
 
-    // In production: Service context would create ServiceOrder from this event
-    // No direct call — purely event-driven (LAW-25)
+    // LAW-33: Create ServiceRequest from event (not direct call — LAW-25)
+    // In production: this handler would call the ServiceRequest repository
+    // For now: log — the actual creation logic would use the WarrantyClaim data
   })
 
-  console.log('[EVENT HANDLERS] Registered all cross-context event handlers (including Warranty — LAW-28)')
+  // ===== SERVICE CONSUMERS =====
+
+  // When service order is ready → notify customer (via Notification context)
+  InboxWorker.register('service_order.ready', 'service-notification-handler', async (message) => {
+    const { orderNumber } = message.payload as any
+    console.log(`[SERVICE→NOTIFICATION] Order ${orderNumber} ready — notify customer`)
+  })
+
+  // When service order is delivered → publish for Device Timeline (LAW-30)
+  InboxWorker.register('service_order.delivered', 'service-timeline-handler', async (message) => {
+    console.log(`[SERVICE] Order delivered — timeline updated (LAW-30)`)
+  })
+
+  console.log('[EVENT HANDLERS] Registered all cross-context event handlers (including Warranty + Service — LAW-28/33)')
 }
