@@ -211,3 +211,50 @@ export const productsApi = {
     }),
   delete: (id: string) => request<void>(`/products/${id}`, { method: 'DELETE' }),
 }
+
+// ============================================================
+// Warehouses (Sprint 2.2A)
+// ============================================================
+
+export interface Warehouse {
+  id: string
+  code: string
+  name: string
+  warehouseType: string
+  branchId: string | null
+  isActive: boolean
+  isDefault: boolean
+  capacityCubic: number | null
+  zoneCount: number
+  locationCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WarehouseZone {
+  id: string
+  warehouseId: string
+  code: string
+  name: string
+  zoneType: string | null
+  isActive: boolean
+  locationCount: number
+  createdAt: string
+}
+
+export const warehousesApi = {
+  list: (page = 1, perPage = 20, search = '', warehouseType?: string) =>
+    request<PaginatedResponse<Warehouse>>(
+      `/warehouses?page=${page}&per_page=${perPage}${search ? `&search=${search}` : ''}${warehouseType ? `&warehouse_type=${warehouseType}` : ''}`,
+    ),
+  get: (id: string) => request<{ data: Warehouse & { zones: WarehouseZone[] } }>(`/warehouses/${id}`),
+  create: (data: Partial<Warehouse>) =>
+    request<{ data: Warehouse }>(`/warehouses`, { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Warehouse>) =>
+    request<{ data: Warehouse }>(`/warehouses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/warehouses/${id}`, { method: 'DELETE' }),
+  listZones: (warehouseId: string) =>
+    request<{ data: WarehouseZone[] }>(`/warehouses/${warehouseId}/zones`),
+  createZone: (warehouseId: string, data: Partial<WarehouseZone>) =>
+    request<{ data: WarehouseZone }>(`/warehouses/${warehouseId}/zones`, { method: 'POST', body: JSON.stringify(data) }),
+}

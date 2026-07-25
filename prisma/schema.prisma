@@ -296,18 +296,116 @@ model ProductInstance {
 }
 
 // ============================================================
-// BUSINESS CODE SEQUENCES (LAW-02)
+// BUSINESS CODE SEQUENCES (LAW-02) — Tenant Scoped + Unique Constraint
 // ============================================================
 
 model BusinessCodeSequence {
   id              String   @id @default(cuid())
-  definitionKey   String   // e.g. "party", "product_category"
   tenantId        String
-  contextKey      String   @default("default")
+  module          String   // e.g. "party", "sales_order", "product_category"
+  prefix          String   // e.g. "PRT", "SO", "CAT"
+  fiscalYear      Int      // Persian (Jalali) year
   lastValue       Int      @default(0)
   lastGeneratedAt DateTime?
   updatedAt       DateTime @updatedAt
 
-  @@unique([definitionKey, tenantId, contextKey])
+  // CRITICAL: Unique constraint ensures concurrent requests can't duplicate
+  @@unique([tenantId, module, prefix, fiscalYear])
+  @@index([tenantId, module])
   @@map("business_code_sequences")
+}
+
+// ============================================================
+// INVENTORY CONTEXT (Sprint 2.2A) — Warehouse, Zone, Location, Bin
+// ============================================================
+
+model Warehouse {
+  id              String   @id @default(cuid())
+  tenantId        String
+  code            String   // Business code: WH-1403-00001
+  name            String
+  warehouseType   String   @default("main") // main|branch|service_center|transit|return
+  branchId        String?
+  serviceCenterId String?
+  partyId         String?
+  address         Json?
+  isActive        Boolean  @default(true)
+  isDefault       Boolean  @default(false)
+  capacityCubic   Float?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  zones           WarehouseZone[]
+  locations       Location[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, warehouseType])
+  @@map("warehouses")
+}
+
+model WarehouseZone {
+  id           String   @id @default(cuid())
+  tenantId     String
+  warehouseId  String
+  warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
+  code         String
+  name         String
+  zoneType     String?   // receiving|storage|shipping|returns|quarantine
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  locations    Location[]
+
+  @@unique([warehouseId, code])
+  @@map("warehouse_zones")
+}
+
+model Location {
+  id           String   @id @default(cuid())
+  tenantId     String
+  warehouseId  String
+  warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
+  zoneId       String?
+  zone         WarehouseZone? @relation(fields: [zoneId], references: [id])
+  parentId     String?
+  parent       Location?  @relation("LocationTree", fields: [parentId], references: [id])
+  children     Location[] @relation("LocationTree")
+  locationType String    // zone|aisle|rack|bin|shelf
+  code         String
+  name         String?
+  fullPath     String
+  level        Int       @default(0)
+  isActive     Boolean   @default(true)
+  isPickable   Boolean   @default(true)
+  capacity     Json?
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  bins         Bin[]
+
+  @@unique([warehouseId, code])
+  @@index([parentId])
+  @@map("locations")
+}
+
+model Bin {
+  id            String   @id @default(cuid())
+  tenantId      String
+  locationId    String   @unique
+  location      Location @relation(fields: [locationId], references: [id])
+  warehouseId   String
+  barcode       String?
+  capacityUnits Int?
+  currentUnits  Int      @default(0)
+  isMixed       Boolean  @default(false) // allow multiple SKUs in same bin
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([warehouseId])
+  @@map("bins")
 }

@@ -22,7 +22,7 @@ export * from './exceptions/conflict-exception'
 export * from './events/domain-event'
 export * from './events/event-bus'
 
-// Contracts (interfaces for cross-module communication — LAW-03)
+// Contracts (interfaces for cross-module communication — LAW-03/04)
 export * from './contracts/tenant-context'
 export * from './contracts/repository'
 export * from './contracts/event-bus-interface'
@@ -40,3 +40,12 @@ export * from './helpers/business-code-generator'
 
 // Infrastructure
 export * from './infra/prisma-event-bus'
+
+// Domain Services (shared business logic)
+export * from './domain-services'
+
+// Repositories (shared data access — cross-cutting)
+export * from './repositories'
+
+// Architecture Laws
+export * from './laws/law-04'
