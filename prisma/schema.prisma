@@ -1171,3 +1171,103 @@ model CreditNoteLine {
   @@unique([creditNoteId, lineNumber])
   @@map("credit_note_lines")
 }
+
+// ============================================================
+// SPRINT 3.4 — RETURNS & REFUNDS
+// ============================================================
+// LAW-22: No Return Receipt Without Physical Inspection
+// LAW-23: Refund Requires Approved Return
+// LAW-24: Replacement Is Return + New Fulfillment
+// ============================================================
+
+model ReturnOrder {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  returnNumber        String   // business code: RET-1403-00001
+  salesOrderId        String?  // original sales order
+  invoiceId           String?  // original invoice
+  customerPartyId     String
+  returnType          String   @default("refund") // refund|replacement|return_only
+  status              String   @default("draft") // draft|submitted|approved|received|closed|cancelled
+  returnDate          DateTime @default(now())
+  approvedAt          DateTime?
+  approvedBy          String?
+  receivedAt          DateTime?
+  receivedBy          String?
+  closedAt            DateTime?
+  refundAmount        Float    @default(0)
+  currencyCode        String   @default("IRR")
+  reason              String?
+  notes               String?
+  metadata            Json?
+  version             Int      @default(1) // LAW-07
+  // LAW-24: Replacement links
+  replacementSalesOrderId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  lines               ReturnOrderLine[]
+  refunds             Refund[]
+
+  @@unique([tenantId, returnNumber])
+  @@index([salesOrderId])
+  @@index([tenantId, customerPartyId])
+  @@index([tenantId, status])
+  @@map("return_orders")
+}
+
+model ReturnOrderLine {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  returnOrderId       String
+  returnOrder         ReturnOrder @relation(fields: [returnOrderId], references: [id])
+  lineNumber          Int
+  productId           String
+  productInstanceId   String?
+  quantityReturned    Float
+  unitPrice           Float
+  lineTotal           Float
+  returnReason        String?
+  // LAW-22: Physical Inspection fields
+  inspectedCondition  String?  // new|used|damaged|defective
+  inspectionNotes     String?
+  inspectedBy         String?
+  inspectedAt         DateTime?
+  isInspected         Boolean  @default(false)
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([returnOrderId, lineNumber])
+  @@map("return_order_lines")
+}
+
+model Refund {
+  id              String   @id @default(cuid())
+  tenantId        String
+  refundNumber    String   // business code: RFD-1403-00001
+  returnOrderId   String   // LAW-23: requires approved return
+  returnOrder     ReturnOrder @relation(fields: [returnOrderId], references: [id])
+  customerPartyId String
+  refundDate      DateTime @default(now())
+  amount          Float
+  currencyCode    String   @default("IRR")
+  refundMethod    String   // cash|bank_transfer|check|credit_card|pos|online|wallet
+  status          String   @default("pending") // pending|approved|completed|cancelled
+  referenceNumber String?
+  approvedAt      DateTime?
+  approvedBy      String?
+  completedAt     DateTime?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([tenantId, refundNumber])
+  @@index([returnOrderId])
+  @@index([tenantId, customerPartyId])
+  @@map("refunds")
+}

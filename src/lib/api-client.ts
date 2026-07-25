@@ -782,3 +782,69 @@ export const paymentsApi = {
       headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
     }),
 }
+
+// ============================================================
+// Returns & Refunds (Sprint 3.4 — LAW-22/23/24)
+// ============================================================
+
+export interface ReturnOrder {
+  id: string
+  returnNumber: string
+  salesOrderId: string | null
+  invoiceId: string | null
+  customerPartyId: string
+  returnType: string
+  status: string
+  returnDate: string
+  approvedAt: string | null
+  receivedAt: string | null
+  closedAt: string | null
+  refundAmount: number
+  currencyCode: string
+  reason: string | null
+  version: number
+  replacementSalesOrderId: string | null
+  lineCount: number
+  refundCount: number
+}
+
+export interface Refund {
+  id: string
+  refundNumber: string
+  returnOrderId: string
+  customerPartyId: string
+  amount: number
+  currencyCode: string
+  refundMethod: string
+  status: string
+  referenceNumber: string | null
+  version: number
+}
+
+export const returnsApi = {
+  list: (page = 1, perPage = 20, status?: string) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (status) params.set('status', status)
+    return request<PaginatedResponse<ReturnOrder>>(`/return-orders?${params}`)
+  },
+  get: (id: string) => request<{ data: ReturnOrder }>(`/return-orders/${id}`),
+  create: (data: { customerPartyId: string; salesOrderId?: string; invoiceId?: string; returnType?: string; reason?: string; lines: Array<{ productId: string; productInstanceId?: string; quantityReturned: number; unitPrice: number; returnReason?: string }> }, idempotencyKey?: string) =>
+    request<{ data: ReturnOrder }>(`/return-orders`, { method: 'POST', body: JSON.stringify(data), headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+  approve: (id: string, data: { approvedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; returnNumber: string; status: string; message: string } }>(`/return-orders/${id}/approve`, { method: 'POST', body: JSON.stringify(data), headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+  receive: (id: string, data: { warehouseId: string; receivedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; returnNumber: string; status: string; ledgerEntriesCreated: number; message: string } }>(`/return-orders/${id}/receive`, { method: 'POST', body: JSON.stringify(data), headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+  close: (id: string, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string } }>(`/return-orders/${id}/close`, { method: 'POST', body: '{}', headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+  createReplacement: (id: string, idempotencyKey?: string) =>
+    request<{ data: { id: string; returnNumber: string; replacementSalesOrderId: string; replacementOrderNumber: string; message: string } }>(`/return-orders/${id}/create-replacement`, { method: 'POST', body: '{}', headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+}
+
+export const refundsApi = {
+  list: (page = 1, perPage = 20) =>
+    request<PaginatedResponse<Refund>>(`/refunds?page=${page}&per_page=${perPage}`),
+  create: (data: { returnOrderId: string; amount: number; refundMethod?: string; referenceNumber?: string }, idempotencyKey?: string) =>
+    request<{ data: Refund }>(`/refunds`, { method: 'POST', body: JSON.stringify(data), headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+  approve: (id: string, data: { approvedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; refundNumber: string; status: string; message: string } }>(`/refunds/${id}/approve`, { method: 'POST', body: JSON.stringify(data), headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+}

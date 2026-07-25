@@ -121,6 +121,10 @@ export const BUSINESS_CODE_DEFINITIONS: Record<
   quote: { prefix: 'QUO', padding: 5 },
   credit_note: { prefix: 'CN', padding: 5 },
 
+  // Returns & Refunds (Sprint 3.4)
+  return_order: { prefix: 'RET', padding: 5 },
+  refund: { prefix: 'RFD', padding: 5 },
+
   // Warranty (Sprint 4)
   warranty_card: { prefix: 'WAR', padding: 5 },
   warranty_claim: { prefix: 'WCL', padding: 5 },
