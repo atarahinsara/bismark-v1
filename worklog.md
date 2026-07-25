@@ -56,3 +56,26 @@ Stage Summary:
 - دو تصمیم معماری پیشنهادی برای Step 2: Workflow = Generic State Machine با Typed Registration؛ Rule Engine = Hybrid (On-demand + Event-driven)
 - ۶ تصمیم باز برای Step 3 ERD شناسایی شد
 - هنوز هیچ کدی نوشته نشده است (Design-Only mode)
+
+---
+
+Task ID: 3
+Agent: Main (Software Company / Architect)
+Task: Lock Step 1 + Establish DoD Framework + Auto-Lock Step 2
+
+Work Log:
+- ثبت قانون جدید پروژه از سوی معمار (کاربر): «فقط خطاهای بحرانی (Critical) اصلاح می‌شوند؛ پیشنهادهای بهبود (Enhancement) در Backlog ثبت می‌شوند و Stepهای Lock شده دوباره باز نمی‌شوند»
+- تأیید نهایی ۳ تصمیم Step 1 توسط معمار: B (Design Only) / Yes (Unified IdP) / Shared DB + TenantId
+- Step 1: قفل نهایی (Approved & Locked) — بدون بازگشت
+- تعریف چارچوب Definition of Done (DoD) برای تمام ۸ Step
+- اعمال DoD بر Step 2 (که در Task ID 2 تولید شده بود) → تمام ۵ معیار پاس شد → Step 2 Auto-Lock شد
+- شناسایی ۴ مورد Enhancement برای Backlog (بدون باز کردن Step 2): Customer 2FA، Org Hierarchy، SSOReady، Workflow Visualization
+- آماده‌سازی Step 3 — Database Design (ERD) با DoD مربوطه
+
+Stage Summary:
+- قانون پروژه: Critical-only fixes، Enhancement → Backlog، No Step reopening
+- Step 1: ✅ Locked
+- Step 2: ✅ Auto-Locked (DoD پاس شد: ۹ BC، ۲۸ Aggregate، ۵۰+ Event، Context Map، بدون وابستگی چرخه‌ای)
+- Step 3: در آستانه شروع — DoD تعریف شد
+- Backlog: ۴ مورد Enhancement ثبت شد
+- هنوز هیچ کدی نوشته نشده است (Design-Only mode)
