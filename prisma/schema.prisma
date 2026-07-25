@@ -1813,6 +1813,9 @@ model TaxCode {
   taxType         String   // vat|sales_tax|withholding|exempt
   name            String
   ratePercent     Float    // 9.00, 0.00
+  inputAccountId  String?  // recoverable input tax account (for VAT)
+  outputAccountId String?  // output tax payable account
+  isRecoverable   Boolean  @default(false)
   isDefault       Boolean  @default(false)
   isActive        Boolean  @default(true)
   description     String?
@@ -1820,6 +1823,9 @@ model TaxCode {
   validTo         DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  rules           TaxRule[]      @relation("TaxCodeRules")
+  calculations    TaxCalculation[] @relation("TaxCodeCalculations")
 
   @@unique([tenantId, code])
   @@map("tax_codes")
@@ -1981,4 +1987,79 @@ model APAllocation {
   @@index([debitTransactionId])
   @@index([creditTransactionId])
   @@map("ap_allocations")
+}
+
+// ============================================================
+// SPRINT 6.4 — TAX ENGINE
+// ============================================================
+// LAW-43: Tax Is Always Derived From Tax Rules
+// LAW-44: Every Tax Posting Must Produce Independent Journal Entries
+// LAW-45: Tax Rules Are Versioned And Effective-Dated
+// ============================================================
+
+model TaxRule {
+  id                String   @id @default(cuid())
+  tenantId          String
+  taxCodeId         String
+  taxCode           TaxCode  @relation("TaxCodeRules", fields: [taxCodeId], references: [id])
+  name              String
+  productCategoryId String?  // FK to ProductCategory (loose — LAW-04)
+  customerGroupId   String?  // optional: customer group scope
+  regionId          String?  // optional: geographic region
+  effectiveFrom     DateTime @default(now())
+  effectiveTo       DateTime?  // null = currently active (LAW-45)
+  priority          Int      @default(100) // higher = more specific, evaluated first
+  formula           String   @default("rate * taxableAmount") // calculation formula
+  rateOverride      Float?   // override the TaxCode.rate if set
+  isReverseCharge   Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  version           Int      @default(1) // LAW-45: versioned
+  description       String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+
+  calculations      TaxCalculation[]
+
+  @@index([taxCodeId, effectiveFrom, effectiveTo])
+  @@index([tenantId, isActive])
+  @@map("tax_rules")
+}
+
+model TaxCalculation {
+  id              String   @id @default(cuid())
+  tenantId        String
+  documentType    String   // sales_invoice|purchase_invoice|credit_note|payment
+  documentId      String
+  taxCodeId       String
+  taxCode         TaxCode  @relation("TaxCodeCalculations", fields: [taxCodeId], references: [id])
+  taxRuleId       String
+  taxRule         TaxRule  @relation(fields: [taxRuleId], references: [id])
+  taxableAmount   Float
+  taxRate         Float    // snapshot of effective rate at calculation time
+  taxAmount       Float
+  currencyCode    String   @default("IRR")
+  calculationDate DateTime @default(now())
+  snapshot        Json     // full context snapshot (for audit — LAW-43)
+  createdAt       DateTime @default(now())
+
+  postings        TaxPosting[]
+
+  @@index([documentType, documentId])
+  @@index([taxCodeId])
+  @@map("tax_calculations")
+}
+
+model TaxPosting {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  journalEntryId      String   // FK to JournalEntry (loose — within Financial)
+  taxCalculationId    String
+  taxCalculation      TaxCalculation @relation(fields: [taxCalculationId], references: [id])
+  postedAt            DateTime @default(now())
+  createdAt           DateTime @default(now())
+
+  @@index([taxCalculationId])
+  @@map("tax_postings")
 }

@@ -1160,3 +1160,42 @@ Stage Summary:
 - Total Architecture Laws: ۴۲ (نهایی)
 - Reconciliation: in_balance (AR diff = 0, AP diff = 0) ✅
 - آماده Sprint 6.4 (Tax Engine)
+
+---
+
+Task ID: 38
+Agent: Main (Software Company / Architect)
+Task: LAW-43/44/45 + Sprint 6.4 (Tax Engine)
+
+Work Log:
+- پذیرش 3 قانون نهایی Tax Engine:
+  • LAW-43: Tax Is Always Derived From Tax Rules (not stored as truth)
+  • LAW-44: Every Tax Posting Must Produce Independent Journal Entries
+  • LAW-45: Tax Rules Are Versioned And Effective-Dated
+- Prisma models (3 new + 1 updated): TaxRule, TaxCalculation, TaxPosting + TaxCode (updated with input/output accounts, isRecoverable)
+- API routes (4 endpoints):
+  • GET/POST /tax-rules (LAW-45: versioned, effective-dated, priority-ordered)
+  • POST /tax/calculate (LAW-43: derive from effective rule, return without posting)
+  • POST /tax/post (LAW-44: independent JE: Debit AR, Credit VAT Payable + TaxCalculation snapshot + TaxPosting link)
+  • GET /tax/reports/vat (VAT summary + details by tax code)
+- Tax Calculation flow (LAW-43):
+  1. Find effective TaxRule for date (LAW-45: effectiveFrom/effectiveTo + priority)
+  2. Filter by productCategoryId (specific → generic fallback)
+  3. Calculate: effectiveRate × taxableAmount
+  4. Return result (no posting — just calculation)
+- Tax Posting flow (LAW-44):
+  1. Create TaxCalculation (snapshot for audit — LAW-43)
+  2. Create independent JournalEntry: Debit AR, Credit VAT Payable (LAW-35: balanced)
+  3. Create TaxPosting link (JE ↔ TaxCalculation)
+  4. Outbox: tax.calculated + tax.posted events
+- LAW-36: Fiscal period check before posting
+- Tests: 68/68 passing
+- Lint: 0 errors
+
+Stage Summary:
+- LAW-43/44/45 اضافه شدند (ADR-058, ADR-059, ADR-060)
+- Sprint 6.4: ✅ Complete (Tax Engine)
+- Total Architecture Laws: ۴۵ (نهایی)
+- Total Prisma Models: 67+
+- Total API Routes: 92+
+- آماده Sprint 6.5 (Financial Statements)
