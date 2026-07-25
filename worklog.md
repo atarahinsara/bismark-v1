@@ -254,3 +254,24 @@ Stage Summary:
 - Steps 4-8: ✅ همگی Auto-Locked (از پاسخ قبلی)
 - Phase 1 کامل و آماده Sign-off
 - تصمیمات نهایی قفل‌شده: ۱۷ ADR + ۲ اصلاح = ۱۹ تصمیم نهایی
+
+---
+
+Task ID: 11
+Agent: Main (Software Company / Architect)
+Task: Re-deliver Step 3 (ERD) as complete standalone deliverable for user review
+
+Work Log:
+- پذیرش قانون کاربر: خروجی هر Step باید قبل از Lock به‌طور کامل تحویل داده شود
+- علامت‌گذاری Steps 4-8 به‌عنوان Draft (تا تأیید Step 3)
+- تمرکز انحصاری روی Step 3 (Database Design / ERD) به‌عنوان deliverable مستقل
+- تولید کامل Step 3 شامل: Data Dictionary، تمام ۴۹ جدول با DDL کامل، PK/FK/UQ/CK، تمام Indexها، Lookup/Junction tables، ER Diagram (Mermaid)، توضیح نگاشت Aggregate → جدول
+- اعمال دو اصلاح Frozen در طراحی: Password بدون انقضا، Audit آرشیو دائمی
+- ارائه به کاربر برای تأیید قبل از Lock نهایی
+
+Stage Summary:
+- Step 3: ارائه کامل به‌عنوان deliverable مستقل (در انتظار تأیید کاربر برای Lock نهایی)
+- Steps 4-8: علامت‌گذاری به‌عنوان Draft (طبق قانون جدید)
+- خروجی Step 3 شامل: ۴۹ جدول (۴۳ داده + ۳ سیستمی + ۳ historical/junction extra)، ۱۶ ENUM، ۴۵+ B-tree index، ۸ Partial، ۱۱ GIN، ۳۰ UQ، ۱۲ CK، ER Diagram Mermaid
+- دو اصلاح Frozen اعمال شد: credentials بدون password_expires_at، audit_retention_configs با archive_months NULLable
+- در انتظار Sign-off کاربر روی Step 3
