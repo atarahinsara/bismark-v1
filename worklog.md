@@ -227,3 +227,30 @@ Stage Summary:
 - Deliverable آماده تحویل به تیم Laravel برای پیاده‌سازی
 - هیچ کد قابل‌اجرا در محیط فعلی (طبق تصمیم Design-Only)
 - در انتظار Sign-off نهایی کاربر
+
+---
+
+Task ID: 10
+Agent: Main (Software Company / Architect)
+Task: Apply 2 Frozen Corrections to Step 3 ERD (Password + Audit Retention)
+
+Work Log:
+- ثبت دو اصلاح نهایی کاربر روی تصمیمات قفل‌شده:
+  • Password Policy: حذف انقضای اجباری ۹۰ روزه → Strong Password + 2FA + Account Lockout (بدون Expiration)
+  • Audit Retention: آرشیو نامحدود دائمی (به‌جای ۶۰ ماه) برای مسائل حقوقی و گارانتی
+- اطلاع‌رسانی به کاربر: Step 3 (و Steps 4-8) قبلاً در پاسخ قبل تولید شده‌اند
+- اعمال delta اصلاحات روی ERD موجود (فقط جدول‌های تغییر یافته):
+  • credentials: حذف منطق expiration (ستون password_changed_at برای audit باقی می‌ماند)
+  • password_history: بدون تغییر ساختاری (فقط برای reuse prevention، نه expiration)
+  • audit_retention_configs: archive_months → NULLable (NULL = آرشیو دائمی)، CHECK constraint به‌روزرسانی
+- به‌روزرسانی config/bismark.php: password.expire_days → 0 (غیرفعال)، audit.default_archive_months → null
+- به‌روزرسانی RolePermissionSeeder و PasswordPolicyService (spec)
+- Step 3 با اصلاحات: Auto-Lock نهایی شد
+- Steps 4-8 نیز در پاسخ قبلی تکمیل شده‌اند
+
+Stage Summary:
+- دو اصلاح Frozen اعمال شد
+- Step 3: ✅ Auto-Locked (نسخه نهایی با اصلاحات)
+- Steps 4-8: ✅ همگی Auto-Locked (از پاسخ قبلی)
+- Phase 1 کامل و آماده Sign-off
+- تصمیمات نهایی قفل‌شده: ۱۷ ADR + ۲ اصلاح = ۱۹ تصمیم نهایی
