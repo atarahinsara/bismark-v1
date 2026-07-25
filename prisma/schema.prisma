@@ -2139,3 +2139,97 @@ model WorkflowHistory {
   @@index([instanceId, changedAt])
   @@map("workflow_history")
 }
+
+// ============================================================
+// SPRINT 7.2 — RULE ENGINE
+// ============================================================
+// LAW-52: Only Rule Engine Evaluates Business Rules
+// LAW-53: Rule Evaluation Must Be Deterministic
+// LAW-54: Rule Execution Must Be Fully Auditable
+// ============================================================
+
+model RuleSet {
+  id              String   @id @default(cuid())
+  tenantId        String
+  code            String   // e.g., 'invoice_approval', 'warranty_validation'
+  name            String
+  context         String   // what domain context this applies to (invoice, warranty, service, etc.)
+  status          String   @default("draft") // draft|published|disabled
+  version         Int      @default(1) // LAW-50
+  priority        Int      @default(100) // higher = evaluated first
+  effectiveFrom   DateTime @default(now())
+  effectiveTo     DateTime?  // null = currently active
+  publishedAt     DateTime?
+  description     String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  rules           RuleDefinition[]
+
+  @@unique([tenantId, code, version])
+  @@index([tenantId, context, status])
+  @@map("rule_sets")
+}
+
+model RuleDefinition {
+  id              String   @id @default(cuid())
+  tenantId        String
+  ruleSetId       String
+  ruleSet         RuleSet  @relation(fields: [ruleSetId], references: [id])
+  name            String
+  description     String?
+  conditionDsl    Json     // { all: [{ field, operator, value }] } or { any: [...] } or { field, operator, value }
+  actionDsl       Json     // { type: "requireApproval", role: "finance_manager" } or { type: "allow" } or { type: "notify", template: "..." }
+  priority        Int      @default(100) // within the ruleset
+  enabled         Boolean  @default(true)
+  version         Int      @default(1) // LAW-50
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  executions      RuleExecution[]
+
+  @@index([ruleSetId, priority])
+  @@map("rule_definitions")
+}
+
+model RuleExecution {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  ruleDefinitionId    String?
+  ruleDefinition      RuleDefinition? @relation(fields: [ruleDefinitionId], references: [id])
+  ruleSetCode         String   // snapshot of ruleset code at execution time
+  ruleSetVersion      Int      // snapshot of ruleset version (LAW-53: deterministic)
+  workflowInstanceId  String?  // if triggered by workflow
+  eventType           String   // event that triggered evaluation
+  inputSnapshot       Json     // full input payload (LAW-54: auditable)
+  result              String   // allow|deny|requireApproval|notify|escalate
+  actions             Json     // array of action DSLs
+  matchedRules        Json     // array of matched rule names
+  executionTime       Int      // duration in milliseconds
+  createdAt           DateTime @default(now())
+
+  auditSteps          RuleAuditStep[]
+
+  @@index([ruleSetCode, createdAt])
+  @@index([workflowInstanceId])
+  @@map("rule_executions")
+}
+
+model RuleAuditStep {
+  id              String   @id @default(cuid())
+  executionId     String
+  execution       RuleExecution @relation(fields: [executionId], references: [id])
+  stepNumber      Int
+  ruleName        String?
+  expression      String   // stringified condition evaluated
+  result          String   // true|false|error
+  duration        Int      // ms
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([executionId, stepNumber])
+  @@map("rule_audit_steps")
+}

@@ -1272,3 +1272,51 @@ Stage Summary:
 - Sprint 7.1: ✅ Complete (Workflow Engine)
 - Total Architecture Laws: ۵۱ (نهایی)
 - آماده Sprint 7.2 (Rule Engine)
+
+---
+
+Task ID: 41
+Agent: Main (Software Company / Architect)
+Task: LAW-52/53/54 + Sprint 7.2 (Rule Engine)
+
+Work Log:
+- پذیرش 3 قانون نهایی Rule Engine:
+  • LAW-52: Only Rule Engine Evaluates Business Rules
+  • LAW-53: Rule Evaluation Must Be Deterministic
+  • LAW-54: Rule Execution Must Be Fully Auditable
+- Prisma models (4 models): RuleSet, RuleDefinition, RuleExecution, RuleAuditStep
+- API routes (5 endpoints):
+  • GET/POST /rule-sets (create with context + priority — LAW-50)
+  • POST /rule-sets/{id}/publish (activate, deactivate previous — LAW-50)
+  • GET/POST /rules (create with conditionDsl + actionDsl — LAW-50)
+  • POST /rules/evaluate (LAW-52: evaluate, LAW-53: deterministic, LAW-54: audit)
+  • POST /rules/test (sandbox — no data mutations — LAW-48)
+- Rule DSL Engine:
+  • Condition: { all: [...] } (AND), { any: [...] } (OR), { field, operator, value } (leaf)
+  • Operators: >, <, >=, <=, ==, !=, in, notIn, contains, startsWith, endsWith, exists, notExists
+  • Nested field access: "invoice.total" → payload.invoice.total
+  • Action types: allow, deny, requireApproval, notify, escalate, autoApprove
+  • Decision priority: deny > requireApproval > escalate > notify > allow
+- Rule Evaluation flow (LAW-52):
+  1. Find published RuleSets for context (effective at now — LAW-50)
+  2. Sort by priority (highest first)
+  3. Load enabled Rules per RuleSet (sorted by priority)
+  4. Evaluate each conditionDsl against payload (LAW-53: deterministic)
+  5. Collect matched rules + actions
+  6. Determine final decision (priority-based)
+  7. Record RuleExecution + RuleAuditSteps (LAW-54: fully auditable)
+  8. Publish 'rule.evaluated' event (Outbox)
+- Rule Test (sandbox):
+  • Input: { conditionDsl, payload }
+  • Output: { matched, evaluatedSteps, duration }
+  • No data recorded (LAW-48: read-only)
+  • Step-by-step audit for debugging
+- Tests: 68/68 passing
+- Lint: 0 errors
+- DSL Test verified: condition {all: [{field:"invoice.total",op:">",val:50000000},{field:"customer.creditScore",op:"<",val:600}]} against payload {invoice:{total:60000000},customer:{creditScore:550}} → matched: True ✅
+
+Stage Summary:
+- LAW-52/53/54 اضافه شدند (ADR-067, ADR-068, ADR-069)
+- Sprint 7.2: ✅ Complete (Rule Engine)
+- Total Architecture Laws: ۵۴ (نهایی)
+- آماده Sprint 7.3 (Notification Center)
