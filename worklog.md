@@ -300,3 +300,31 @@ Stage Summary:
 - پیوند با Part 1: parties.user_id → users، product_documents.file_id → files
 - PostgreSQL features: JSONB، GIN، Partial Index، ENUM، Generated Column، Range Partitioning (stock_transactions)
 - در انتظار تأیید کاربر برای ورود به Sales/Warranty/Service/Financial
+
+---
+
+Task ID: 13
+Agent: Main (Software Company / Architect)
+Task: Apply Part 2 Corrections + Lock + Design Part 3 (Sales/Warranty/Service/Financial)
+
+Work Log:
+- ثبت اصلاحات کاربر روی Part 2:
+  • Party: وارون FK — parties.user_id حذف، users.party_id اضافه شد (Party مستقل از Identity)
+  • Product Instance: قانون Immutability — product_id پس از ایجاد هرگز قابل تغییر نیست
+  • Generated Columns: فقط برای مقادیر Deterministic (تأیید اصل، انصراف از "current status" نوع‌ها)
+- ثبت دو قانون معماری جدید (Architecture Laws):
+  • LAW-01: هیچ Context حق JOIN مستقیم به Context دیگر ندارد — فقط Repository/DomainService/Event/ACL
+  • LAW-02: تمام جداول اصلی باید Business Code داشته باشند (SO-1405-000125، RO-1405-000856، INV-1405-001125، WAR-1405-000452)
+- Step 3 Part 2: ✅ Approved & Locked
+- طراحی Step 3 Part 3: ۴ Bounded Context جدید (Sales، Warranty، Service، Financial)
+- تولید ~۴۸ جدول جدید با DDL کامل، ENUM types، Indexها، Constraints، ERD Mermaid
+- اعمال Law-02: همه Aggregate Rootهای اصلی دارای ستون business_code
+- اعمال Law-01: cross-context references فقط با ID (loose FK)، نه JOIN
+- آماده ارائه برای تأیید کاربر
+
+Stage Summary:
+- Step 3 Part 2: ✅ Locked (با اصلاحات اعمال شد)
+- دو قانون معماری جدید قفل شد: LAW-01 (No Cross-Context JOIN)، LAW-02 (Business Codes)
+- Step 3 Part 3: ۴۸ جدول در ۴ Bounded Context طراحی شد
+- Total ERP تا اینجا: 49 (Part 1) + 30 (Part 2) + 48 (Part 3) = ۱۲۷ جدول
+- در انتظار تأیید کاربر برای Lock نهایی Part 3
