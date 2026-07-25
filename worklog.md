@@ -1083,3 +1083,44 @@ Stage Summary:
 - Total Tests: 68 (all passing)
 - Trial Balance: difference = 0 ✅ (DoD)
 - آماده Sprint 6.2 (General Ledger + Closing)
+
+---
+
+Task ID: 36
+Agent: Main (Software Company / Architect)
+Task: LAW-37/38/39 + Sprint 6.2 (General Ledger + Closing Engine)
+
+Work Log:
+- پذیرش 3 قانون نهایی بستن دوره:
+  • LAW-37: Only Reversal May Correct Posted Journal Entries
+  • LAW-38: Financial Period Close Requires Zero Validation Errors
+  • LAW-39: Year Closing Automatically Generates Opening Balances
+- API routes (7 endpoints):
+  • GET /general-ledger (with running balance, filters: account, period, cost center, date)
+  • POST /opening-balances (create opening JE — LAW-35 balance check)
+  • POST /journal-entries/{id}/reverse (LAW-37: mirror JE, swap debit/credit)
+  • GET /closing-validation (LAW-38: 5 pre-close checks)
+  • POST /fiscal-periods/{id}/soft-close (temporarily locked)
+  • POST /fiscal-periods/{id}/hard-close (LAW-38: validate all checks, LAW-36: immutable)
+  • POST /fiscal-years/{id}/close (LAW-39: auto closing JE + opening JE + retained earnings)
+- Closing Validation checks (LAW-38):
+  1. Trial Balance balanced (LAW-35)
+  2. No draft JEs
+  3. No pending Financial events in Outbox
+  4. No pending reversal requests
+  5. No unposted accruals
+- Year Close flow (LAW-39):
+  1. Verify all periods closed
+  2. Calculate closing balances per account
+  3. Post Year-End Closing JE (zero revenue/expense → Retained Earnings)
+  4. Create Opening Balance JE for next year (carry forward balance sheet)
+  5. Lock fiscal year
+  6. Publish events (fiscal_year.closed, opening_balance.created)
+- Tests: 68/68 passing
+- Lint: 0 errors
+
+Stage Summary:
+- LAW-37/38/39 اضافه شدند (ADR-052, ADR-053, ADR-054)
+- Sprint 6.2: ✅ Complete (General Ledger + Closing Engine)
+- Total Architecture Laws: ۳۹ (نهایی)
+- آماده Sprint 6.3 (AR/AP)
