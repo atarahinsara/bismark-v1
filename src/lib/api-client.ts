@@ -681,3 +681,104 @@ export const shipmentsApi = {
   tracking: (id: string) =>
     request<{ data: { shipmentNumber: string; status: string; trackingNumber: string | null; timeline: Array<{ event: string; timestamp: string; label: string }> } }>(`/shipments/${id}/tracking`),
 }
+
+// ============================================================
+// Invoices (Sprint 3.3 — Billing, LAW-19/20/21)
+// ============================================================
+
+export interface Invoice {
+  id: string
+  invoiceNumber: string
+  salesOrderId: string | null
+  customerPartyId: string
+  invoiceDate: string
+  dueDate: string | null
+  status: string
+  subtotal: number
+  discountAmount: number
+  taxAmount: number
+  shippingAmount: number
+  totalAmount: number
+  paidAmount: number
+  balanceDue: number
+  currencyCode: string
+  version: number
+  lineCount: number
+  issuedAt: string | null
+  lines?: InvoiceLine[]
+}
+
+export interface InvoiceLine {
+  id: string
+  lineNumber: number
+  productId: string
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
+
+export const invoicesApi = {
+  list: (page = 1, perPage = 20, filters: { status?: string; customerPartyId?: string } = {}) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (filters.status) params.set('status', filters.status)
+    if (filters.customerPartyId) params.set('customer_party_id', filters.customerPartyId)
+    return request<PaginatedResponse<Invoice>>(`/invoices?${params}`)
+  },
+  get: (id: string) => request<{ data: Invoice, lines: InvoiceLine[] }>(`/invoices/${id}`),
+  create: (data: { salesOrderId: string; dueDate?: string; notes?: string }, idempotencyKey?: string) =>
+    request<{ data: Invoice }>(`/invoices`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  issue: (id: string, data: { issuedBy?: string; taxInvoiceNumber?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; invoiceNumber: string; status: string; message: string } }>(`/invoices/${id}/issue`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  cancel: (id: string, data: { reason?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string } }>(`/invoices/${id}/cancel`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  creditNote: (id: string, data: { amount?: number; reason?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; creditNoteNumber: string; invoiceId: string; status: string; totalAmount: number; message: string } }>(`/invoices/${id}/credit-note`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+}
+
+// ============================================================
+// Payments (Sprint 3.3 — LAW-20: Every Payment Must Be Allocated)
+// ============================================================
+
+export interface Payment {
+  id: string
+  paymentNumber: string
+  customerPartyId: string
+  paymentDate: string
+  amount: number
+  currencyCode: string
+  paymentMethod: string
+  status: string
+  referenceNumber: string | null
+  version: number
+  allocationCount: number
+}
+
+export const paymentsApi = {
+  list: (page = 1, perPage = 20, status?: string) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (status) params.set('status', status)
+    return request<PaginatedResponse<Payment>>(`/payments?${params}`)
+  },
+  create: (data: { customerPartyId: string; amount: number; paymentMethod?: string; referenceNumber?: string; notes?: string }, idempotencyKey?: string) =>
+    request<{ data: Payment }>(`/payments`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  allocate: (id: string, data: { allocations: Array<{ invoiceId: string; allocatedAmount: number }>; allocatedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; paymentNumber: string; status: string; totalAllocated: number; message: string } }>(`/payments/${id}/allocate`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+}

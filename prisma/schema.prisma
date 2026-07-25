@@ -1009,3 +1009,165 @@ model PickListLine {
   @@unique([pickListId, shipmentLineId])
   @@map("pick_list_lines")
 }
+
+// ============================================================
+// SPRINT 3.3 — BILLING (Invoice, Payment, Credit Note, Settlement)
+// ============================================================
+// LAW-19: Only Financial Context Creates Accounting Entries
+// LAW-20: Every Payment Must Be Allocated
+// LAW-21: Invoices Become Immutable After Issue
+// ============================================================
+
+model Invoice {
+  id              String   @id @default(cuid())
+  tenantId        String
+  invoiceNumber   String   // business code: INV-1403-00001
+  salesOrderId    String?  // FK to SalesOrder (same context)
+  customerPartyId String   // FK to Party (loose — LAW-04)
+  invoiceDate     DateTime @default(now())
+  dueDate         DateTime?
+  status          String   @default("draft") // draft|issued|partially_paid|paid|cancelled|reversed
+  subtotal        Float    @default(0)
+  discountAmount  Float    @default(0)
+  taxAmount       Float    @default(0)
+  shippingAmount  Float    @default(0)
+  totalAmount     Float    @default(0)
+  paidAmount      Float    @default(0)
+  // balanceDue = totalAmount - paidAmount (computed on read — LAW-05)
+  currencyCode    String   @default("IRR")
+  taxInvoiceNumber String?  // official tax invoice number
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  issuedAt        DateTime?
+  cancelledAt     DateTime?
+  reversedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  lines           InvoiceLine[]
+  allocations     PaymentAllocation[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([salesOrderId])
+  @@index([tenantId, customerPartyId, invoiceDate])
+  @@index([tenantId, status])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  invoiceId       String
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+  salesOrderLineId String?
+  lineNumber      Int
+  productId       String
+  productInstanceId String?
+  quantity        Float
+  unitPrice       Float
+  discountAmount  Float    @default(0)
+  taxAmount       Float    @default(0)
+  lineTotal       Float
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@unique([invoiceId, lineNumber])
+  @@map("invoice_lines")
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  paymentNumber   String   // business code: PAY-1403-00001
+  customerPartyId String   // FK to Party (loose — LAW-04)
+  paymentDate     DateTime @default(now())
+  amount          Float
+  currencyCode    String   @default("IRR")
+  paymentMethod   String   // cash|bank_transfer|check|credit_card|pos|online|wallet
+  status          String   @default("pending") // pending|partially_allocated|completed|cancelled|failed
+  referenceNumber String?  // bank reference / transaction ID
+  bankAccount     String?
+  depositedAt     DateTime?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  allocations     PaymentAllocation[]
+
+  @@unique([tenantId, paymentNumber])
+  @@index([tenantId, customerPartyId, paymentDate])
+  @@index([tenantId, status])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id              String   @id @default(cuid())
+  tenantId        String
+  paymentId       String
+  payment         Payment  @relation(fields: [paymentId], references: [id])
+  invoiceId       String
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+  allocatedAmount Float
+  allocatedAt     DateTime @default(now())
+  allocatedBy     String?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@unique([paymentId, invoiceId])
+  @@index([invoiceId])
+  @@map("payment_allocations")
+}
+
+model CreditNote {
+  id              String   @id @default(cuid())
+  tenantId        String
+  creditNoteNumber String  // business code: CN-1403-00001
+  invoiceId       String   // the invoice being credited
+  customerPartyId String
+  creditNoteDate  DateTime @default(now())
+  status          String   @default("draft") // draft|issued|applied|cancelled
+  subtotal        Float    @default(0)
+  taxAmount       Float    @default(0)
+  totalAmount     Float    @default(0)
+  currencyCode    String   @default("IRR")
+  reason          String?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  issuedAt        DateTime?
+  appliedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  lines           CreditNoteLine[]
+
+  @@unique([tenantId, creditNoteNumber])
+  @@index([invoiceId])
+  @@map("credit_notes")
+}
+
+model CreditNoteLine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  creditNoteId    String
+  creditNote      CreditNote @relation(fields: [creditNoteId], references: [id])
+  invoiceLineId   String?
+  lineNumber      Int
+  productId       String?
+  description     String
+  quantity        Float    @default(1)
+  unitPrice       Float    @default(0)
+  taxAmount       Float    @default(0)
+  lineTotal       Float
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@unique([creditNoteId, lineNumber])
+  @@map("credit_note_lines")
+}

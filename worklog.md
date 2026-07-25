@@ -832,3 +832,30 @@ Stage Summary:
 - LAW-16/17/18 اضافه شدند (ADR-031, ADR-032, ADR-033)
 - Sprint 3.2: در حال اجرا
 - Total Architecture Laws: ۱۸
+
+---
+
+Task ID: 29
+Agent: Main (Software Company / Architect)
+Task: LAW-19/20/21 + Sprint 3.3 (Billing — Invoice, Payment, Credit Note, Settlement)
+
+Work Log:
+- پذیرش 3 قانون جدید:
+  • LAW-19: Only Financial Context Creates Accounting Entries
+  • LAW-20: Every Payment Must Be Allocated
+  • LAW-21: Invoices Become Immutable After Issue
+- تأیید DoD: Integration Test (Order → Shipment → Invoice → Issue → Payment → Allocate → Paid → Outbox → Financial Ready)
+- ایجاد LAW-19/20/21 در Shared Kernel
+- Prisma models: Invoice, InvoiceLine, Payment, PaymentAllocation, CreditNote, CreditNoteLine
+- API routes:
+  • /api/v1/invoices (CRUD + issue + cancel + credit-note)
+  • /api/v1/payments (CRUD + allocate)
+  • /api/v1/credit-notes (CRUD)
+- اعمال تمام 21 قانون در Billing module
+- UI: Billing view با invoices + payments + credit notes + allocation wizard
+- Integration test
+
+Stage Summary:
+- LAW-19/20/21 اضافه شدند (ADR-034, ADR-035, ADR-036)
+- Sprint 3.3: در حال اجرا
+- Total Architecture Laws: ۲۱
