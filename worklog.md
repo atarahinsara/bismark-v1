@@ -438,3 +438,27 @@ Stage Summary:
 - Phase 1 (ERP Core) + Parts 2+3 (Business) Design کامل شد
 - 8 Step همگی Locked شدند
 - آماده Sign-off نهایی کاربر
+
+---
+
+Task ID: 18
+Agent: Main (Software Company / Architect)
+Task: Critical Confirmation before Sprint 1 — Environment vs ADR-001 conflict
+
+Work Log:
+- پذیرش رویکرد Sprint-based کاربر (استاندارد Enterprise)
+- تأیید Step 4 Locked (کاربر در این پیام نیز تأیید کرد)
+- شناسایی Critical Issue قبل از شروع Sprint 1:
+  • ADR-001 (قفل‌شده): Laravel 12 + PostgreSQL + Redis
+  • محیط sandbox ایجنت: Next.js 16 + TypeScript + Prisma + SQLite (قابلیت preview فقط روی Next.js port 3000)
+  • کاربر در پیام جدید: "ایجاد ساختار پروژه Laravel 12" + ورود به فاز اجرا
+  • تناقض: اگر Laravel بنویسم → قابل اجرا/preview در sandbox نیست؛ اگر Next.js بنویسم → ADR-001 نقض می‌شود
+- ارائه ۳ گزینه به کاربر برای تصمیم نهایی قبل از شروع Sprint 1
+- عدم شروع کدنویسی تا تصمیم کاربر (طبق قانون: توقف برای Critical)
+
+Stage Summary:
+- Step 4: ✅ Locked (مجدداً تأیید شد)
+- رویکرد Sprint-based پذیرفته شد (8 Sprint برنامه‌ریزی شد)
+- Critical Issue: تعارض محیط sandbox با ADR-001
+- ۳ گزینه ارائه شد: (A) Pure Laravel / (B) Next.js POC / (C) Hybrid
+- منتظر تصمیم کاربر قبل از شروع Sprint 1
