@@ -6,7 +6,7 @@ import {
   LogOut, Search, Bell, Settings, Menu, X, Sun, Moon, Globe,
   Plus, Edit2, Trash2, Lock, Unlock, Ban, CheckCircle, AlertCircle,
   ChevronLeft, MoreVertical, Mail, Phone, Calendar, User as UserIcon,
-  Server, Database, GitBranch, Zap, Check, Filter, Download,
+  Server, Database, GitBranch, Zap, Check, Filter, Download, Package,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,8 +32,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTheme } from 'next-themes'
 import { mockUsers, mockRoles, mockParties, mockBranches, dashboardStats } from '@/lib/mock-data'
 import type { User, Role, Party, UserType, UserStatus, PartyType, PartyStatus } from '@/lib/types'
+import { ProductsView } from '@/components/views/products-view'
 
-type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'branches' | 'audit' | 'settings'
+type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'branches' | 'audit' | 'settings'
 
 const userTypeLabels: Record<UserType, string> = {
   customer: 'مشتری',
@@ -203,6 +204,7 @@ const navGroups = [
     title: 'موجودیت‌ها',
     items: [
       { view: 'parties' as View, label: 'اشخاص و سازمان‌ها', icon: UserCog },
+      { view: 'products' as View, label: 'محصولات', icon: Package },
       { view: 'branches' as View, label: 'شعب', icon: Building2 },
     ],
   },
@@ -1340,6 +1342,7 @@ export default function Page() {
     users: 'کاربران',
     roles: 'نقش‌ها',
     parties: 'اشخاص و سازمان‌ها',
+    products: 'مدیریت محصولات',
     branches: 'شعب',
     audit: 'لاگ ممیزی',
     settings: 'تنظیمات',
@@ -1362,6 +1365,7 @@ export default function Page() {
           {view === 'users' && <UsersView />}
           {view === 'roles' && <RolesView />}
           {view === 'parties' && <PartiesView />}
+          {view === 'products' && <ProductsView />}
           {view === 'branches' && <BranchesView />}
           {view === 'audit' && <AuditView />}
           {view === 'settings' && <SettingsView />}

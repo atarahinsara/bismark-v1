@@ -1,8 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// BISMARK ERP — Prisma Schema (Sandbox Reference Implementation)
+// This mirrors the Laravel/PostgreSQL schema from design/*.yaml
+// In production, Laravel + PostgreSQL is used (ADR-001).
+// In sandbox, Next.js + Prisma + SQLite provides a runnable reference.
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +12,302 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ============================================================
+// SYSTEM TABLES
+// ============================================================
+
+model Tenant {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  defaultLocale String   @default("fa-IR")
+  defaultTz     String   @default("Asia/Tehran")
+  isActive      Boolean  @default(true)
+  metadata      Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  users         User[]
+  parties       Party[]
+  branches      Branch[]
+  productCategories ProductCategory[]
+  productBrands     ProductBrand[]
+  productModels     ProductModel[]
+  products          Product[]
+  productInstances  ProductInstance[]
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ============================================================
+// IDENTITY CONTEXT (Sprint 1)
+// ============================================================
+
+model User {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  username        String
+  displayName     String
+  email           String?
+  phone           String?
+  userType        String   @default("staff") // customer|representative|technician|service_center|staff
+  status          String   @default("active") // active|suspended|locked|deleted
+  locale          String   @default("fa-IR")
+  isActive        Boolean  @default(true)
+  lockedUntil     DateTime?
+  lastLoginAt     DateTime?
+  metadata        Json
+  createdBy       String?
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([tenantId, username])
+  @@index([tenantId, status])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  key         String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([tenantId, key])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  module      String
+  action      String
+  description String?
+  isSystem    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@map("permissions")
+}
+
+model Session {
+  id              String   @id @default(cuid())
+  userId          String
+  tenantId        String
+  status          String   @default("active") // active|expired|revoked
+  ipAddress       String
+  userAgent       String?
+  deviceFingerprint String?
+  issuedAt        DateTime @default(now())
+  lastActivityAt  DateTime @default(now())
+  expiresAt       DateTime
+  absoluteExpiresAt DateTime
+  revokedAt       DateTime?
+  revokedReason   String?
+  metadata        Json
+
+  @@index([userId, status])
+  @@map("sessions")
+}
+
+// ============================================================
+// ORGANIZATION CONTEXT (Sprint 1)
+// ============================================================
+
+model Branch {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  name          String
+  code          String
+  parentId      String?
+  address       Json?
+  contactPhone  String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  @@unique([tenantId, code])
+  @@map("branches")
+}
+
+// ============================================================
+// PARTY CONTEXT (Sprint 1)
+// ============================================================
+
+model Party {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  businessCode    String   // LAW-02: PRT-1403-00001
+  partyType       String   // person|organization
+  displayName     String
+  status          String   @default("active") // active|inactive|suspended|blacklisted
+  taxId           String?
+  registrationNo  String?
+  metadata        Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([tenantId, businessCode])
+  @@index([tenantId, partyType])
+  @@map("parties")
+}
+
+// ============================================================
+// PRODUCT CONTEXT (Sprint 2.1) — NEW
+// ============================================================
+
+model ProductCategory {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  name          String
+  code          String
+  parentId      String?
+  parent        ProductCategory? @relation("CategoryTree", fields: [parentId], references: [id])
+  children      ProductCategory[] @relation("CategoryTree")
+  level         Int      @default(0)
+  path          String?
+  isActive      Boolean  @default(true)
+  description   String?
+  attributes    Json // expected attributes
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  models        ProductModel[]
+
+  @@unique([tenantId, code])
+  @@index([parentId])
+  @@map("product_categories")
+}
+
+model ProductBrand {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  name                String
+  nameEn              String?
+  code                String
+  manufacturerPartyId String?
+  logoFileId          String?
+  description         String?
+  isActive            Boolean  @default(true)
+  metadata            Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  models              ProductModel[]
+
+  @@unique([tenantId, code])
+  @@map("product_brands")
+}
+
+model ProductModel {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  brandId         String
+  brand           ProductBrand @relation(fields: [brandId], references: [id])
+  categoryId      String
+  category        ProductCategory @relation(fields: [categoryId], references: [id])
+  name            String
+  modelCode       String
+  description     String?
+  warrantyMonths  Int      @default(12)
+  isSerialized    Boolean  @default(true)
+  attributes      Json // model-level spec
+  status          String   @default("active") // draft|active|discontinued|recall
+  imageFileId     String?
+  metadata        Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  products        Product[]
+
+  @@unique([tenantId, modelCode])
+  @@map("product_models")
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  modelId         String
+  model           ProductModel @relation(fields: [modelId], references: [id])
+  sku             String
+  name            String
+  productType     String   @default("serialized") // serialized|batch|bulk
+  barcodeValue    String?
+  unitOfMeasure   String   @default("piece")
+  weightGrams     Int?
+  dimensions      Json?
+  description     String?
+  status          String   @default("active") // draft|active|discontinued|recall
+  attributes      Json
+  metadata        Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  instances       ProductInstance[]
+
+  @@unique([tenantId, sku])
+  @@map("products")
+}
+
+model ProductInstance {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  productId           String
+  product             Product  @relation(fields: [productId], references: [id])
+  serialNumber        String
+  qrCode              String?
+  status              String   @default("in_stock") // in_stock|reserved|sold|in_service|returned|scrapped|lost
+  condition           String   @default("new") // new|refurbished|used|damaged
+  manufactureDate     DateTime?
+  importDate          DateTime?
+  warrantyStart       DateTime?
+  warrantyEnd         DateTime?
+  currentWarehouseId  String?
+  currentLocationId   String?
+  currentOwnerPartyId String?
+  supplierPartyId     String?
+  importBatch         String?
+  attributes          Json // IMEI, MAC, etc.
+  metadata            Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  @@unique([tenantId, serialNumber])
+  @@map("product_instances")
+}
+
+// ============================================================
+// BUSINESS CODE SEQUENCES (LAW-02)
+// ============================================================
+
+model BusinessCodeSequence {
+  id              String   @id @default(cuid())
+  definitionKey   String   // e.g. "party", "product_category"
+  tenantId        String
+  contextKey      String   @default("default")
+  lastValue       Int      @default(0)
+  lastGeneratedAt DateTime?
+  updatedAt       DateTime @updatedAt
+
+  @@unique([definitionKey, tenantId, contextKey])
+  @@map("business_code_sequences")
 }

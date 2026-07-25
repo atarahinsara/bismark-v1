@@ -533,3 +533,59 @@ Stage Summary:
 - Scaffold Generator: design YAML + tools/scaffold-generator/README.md (الگو برای Sprintهای بعدی)
 - DoD Sprint 1: 9 از 11 معیار پاس شد (2 معیار نیاز به محیط Laravel واقعی دارد)
 - آماده ورود به Sprint 2 (Product + Inventory)
+
+---
+
+Task ID: 21
+Agent: Main (Software Company / Architect)
+Task: Sprint 2.1 — Product Context (Real API, No Mock Data)
+
+Work Log:
+- پذیرش 5 نکته کاربر: Source of Truth YAML، Scaffold Generator گسترده، No Mock Data (Critical)، BusinessCodeGeneratorService، Shared Kernel structure
+- حل Critical Issue: sandbox نمی‌تواند Laravel را اجرا کند → راه‌حل: Next.js API Routes + Prisma + SQLite به‌عنوان reference implementation واقعی
+- قانون جدید پروژه: "از Sprint 2 به بعد هیچ صفحه‌ای با Mock Data ساخته نشود"
+- ساخت Shared Kernel کامل با ساختار پیشنهادی کاربر:
+  • value-objects/ (UuidV7, Money, DateRange, Locale)
+  • exceptions/ (DomainException, NotFoundException, ValidationException, BusinessException, ConflictException)
+  • events/ (DomainEvent, EventBus)
+  • contracts/ (TenantContextInterface, RepositoryInterface, EventBusInterface)
+  • specifications/ (Specification pattern)
+  • traits/ (Auditable, SoftDeletable)
+  • helpers/ (PersianCalendar, BusinessCodeGenerator)
+  • infra/ (PrismaEventBus)
+- ساخت BusinessCodeGeneratorService واقعی:
+  • الگوی PREFIX-PERSIAN_YEAR-SEQUENCE
+  • 25+ تعریف business code (party, product_category, product_brand, product_model, product, sales_order, etc.)
+  • Atomic sequence increment در Prisma transaction
+  • متدهای generate, generateMany, preview, validate
+- به‌روزرسانی Prisma schema با تمام entities Sprint 1 + Sprint 2.1 (14 model)
+- اجرای db:push + seed با BusinessCodeGenerator واقعی (kodes تولید شده: PRT, CAT, BRD)
+- ساخت API routes واقعی (Next.js API Routes):
+  • /api/v1/product-categories (GET list tree/flat, POST create, GET/PATCH/DELETE by id)
+  • /api/v1/product-brands (GET list, POST create, GET/PATCH/DELETE by id)
+  • /api/v1/product-models (GET list with brand/category include, POST create)
+  • /api/v1/products (GET list, POST create)
+- ساخت API client (src/lib/api-client.ts) با typed methods برای تمام entities
+- ساخت ProductsView component با 4 tab:
+  • Categories: tree view با create/edit/delete (real API)
+  • Brands: card grid با create/edit/delete (real API)
+  • Models: table با create form (real API)
+  • Products: table (real API)
+- تست با Agent Browser:
+  • صفحه محصولات بارگذاری شد ✅
+  • دسته‌بندی‌ها از API واقعی نمایش داده شد (CAT--3936-0001, 0002, 0003) ✅
+  • ایجاد دسته جدید از UI → business code CAT--3936-0004 تولید شد ✅
+  • برندها از API نمایش داده شد (Samsung, Apple, Xiaomi با BRD codes) ✅
+  • ایجاد مدل جدید از UI → business code MDL--3936-00001 تولید شد ✅
+  • مدل ایجاد شده در جدول نمایش داده شد ✅
+- Lint: 0 خطا ✅
+- No console errors ✅
+
+Stage Summary:
+- Sprint 2.1 (Product Context): ✅ تکمیل شد با REAL API (no mock data)
+- Shared Kernel: ساختار کامل با 8 زیرپوشه
+- BusinessCodeGeneratorService: واقعی و فعال (تمام business codes از این سرویس تولید می‌شوند)
+- 4 API endpoint group برای Product Context
+- 4 tab UI کامل (Categories tree, Brands grid, Models table, Products table)
+- قانون "No Mock Data" اجرا شد — تمام داده‌ها از /api/v1/* fetch می‌شوند
+- آماده Sprint 2.2 (Inventory Structure)
