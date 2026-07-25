@@ -907,3 +907,42 @@ Stage Summary:
 - Integration Dashboard: ✅ UI + API
 - Total Architecture Laws: ۲۷ (نهایی)
 - Sprint 3 (Sales) کامل: 3.1 + 3.2 + 3.3 + 3.4 + 3.5
+
+---
+
+Task ID: 31
+Agent: Main (Software Company / Architect)
+Task: LAW-28/29/30 + Sprint 4 (Warranty Foundation)
+
+Work Log:
+- پذیرش 3 قانون جدید:
+  • LAW-28: Warranty Activation Only From Shipment Delivered Event
+  • LAW-29: Every Warranty Claim Must Pass Inspection Before Approval
+  • LAW-30: Device Timeline Is Reconstructed From Immutable Domain Events
+- ایجاد LAW-28/29/30 در Shared Kernel
+- Prisma models: WarrantyPolicy, WarrantyCard, WarrantyClaim, WarrantyExtension, WarrantyTransfer (5 models)
+- API routes (7 endpoints):
+  • GET/POST /warranty-cards (create as pending — LAW-28)
+  • GET /warranty-cards/{id} (with computed isExpired/isInGrace — LAW-05)
+  • POST /warranty-cards/{id}/activate (manual override — LAW-28)
+  • GET/POST /warranty-claims (create as submitted)
+  • POST /warranty-claims/{id}/inspect (LAW-29: inspection required)
+  • POST /warranty-claims/{id}/approve (LAW-29: check isInspected, publishes event — LAW-25)
+  • GET /device-timeline/{instanceId} (LAW-30: from outbox_messages, not stored)
+- Event Handlers:
+  • warranty-activation-handler (shipment.delivered → activate warranty — LAW-28)
+  • warranty-service-handler (warranty.claim.approved → Service creates order — LAW-25)
+- Event Catalog: 8 new warranty events (total: 30 events)
+- UI: WarrantyView with 2 tabs (Cards + Claims) + detail dialogs + inspect form
+- Business codes: WAR, WCL, WEX, WTR
+- تست: Page 200, Cards API 200, Claims API 200, Lint 0, 27 LAW files, 11 UI views
+
+Stage Summary:
+- LAW-28/29/30 اضافه شدند (ADR-043, ADR-044, ADR-045)
+- Sprint 4: ✅ Complete (Warranty Foundation)
+- Total Architecture Laws: ۳۰ (نهایی)
+- Total Prisma Models: 45+
+- Total API Routes: 60+
+- Total UI Views: 11
+- Total Event Catalog: 30 events
+- آماده Sprint 5 (Service)

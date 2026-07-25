@@ -163,6 +163,56 @@ export const EVENT_CATALOG: EventDefinition[] = [
     payloadFields: ['sagaInstanceId', 'failedStep', 'compensationActions'],
     retryPolicy: 'none', idempotencyKey: 'sagaInstanceId',
   },
+
+  // ===== WARRANTY CONTEXT (Sprint 4) =====
+  {
+    eventType: 'warranty_card.created', version: '1.0',
+    publisher: 'Warranty', consumers: ['Audit'],
+    payloadFields: ['warrantyNumber', 'productInstanceId', 'customerPartyId'],
+    retryPolicy: 'exponential', idempotencyKey: 'warrantyCardId',
+  },
+  {
+    eventType: 'warranty.activated', version: '1.0',
+    publisher: 'Warranty', consumers: ['Audit', 'DeviceTimeline'],
+    payloadFields: ['warrantyNumber', 'productInstanceId', 'customerPartyId', 'startDate', 'endDate'],
+    retryPolicy: 'exponential', idempotencyKey: 'warrantyCardId',
+  },
+  {
+    eventType: 'warranty.claim.submitted', version: '1.0',
+    publisher: 'Warranty', consumers: ['Audit', 'DeviceTimeline'],
+    payloadFields: ['claimNumber', 'warrantyCardId', 'productInstanceId'],
+    retryPolicy: 'exponential', idempotencyKey: 'claimId',
+  },
+  {
+    eventType: 'warranty.claim.inspected', version: '1.0',
+    publisher: 'Warranty', consumers: ['Audit'],
+    payloadFields: ['claimNumber', 'defectType', 'defectSeverity', 'isCovered'],
+    retryPolicy: 'exponential', idempotencyKey: 'claimId',
+  },
+  {
+    eventType: 'warranty.claim.approved', version: '1.0',
+    publisher: 'Warranty', consumers: ['Service', 'Audit', 'DeviceTimeline'],
+    payloadFields: ['claimNumber', 'warrantyCardId', 'productInstanceId', 'customerPartyId', 'defectType', 'estimatedCost'],
+    retryPolicy: 'exponential', idempotencyKey: 'claimId',
+  },
+  {
+    eventType: 'warranty.claim.rejected', version: '1.0',
+    publisher: 'Warranty', consumers: ['Audit'],
+    payloadFields: ['claimNumber', 'rejectionReason'],
+    retryPolicy: 'exponential', idempotencyKey: 'claimId',
+  },
+  {
+    eventType: 'warranty.extended', version: '1.0',
+    publisher: 'Warranty', consumers: ['Audit', 'DeviceTimeline'],
+    payloadFields: ['extensionNumber', 'warrantyCardId', 'extensionMonths', 'newEndDate'],
+    retryPolicy: 'exponential', idempotencyKey: 'extensionId',
+  },
+  {
+    eventType: 'warranty.transfer.approved', version: '1.0',
+    publisher: 'Warranty', consumers: ['Audit', 'DeviceTimeline'],
+    payloadFields: ['transferNumber', 'warrantyCardId', 'fromPartyId', 'toPartyId'],
+    retryPolicy: 'exponential', idempotencyKey: 'transferId',
+  },
 ]
 
 /**

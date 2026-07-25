@@ -7,7 +7,7 @@ import {
   Plus, Edit2, Trash2, Lock, Unlock, Ban, CheckCircle, AlertCircle,
   ChevronLeft, MoreVertical, Mail, Phone, Calendar, User as UserIcon,
   Server, Database, GitBranch, Zap, Check, Filter, Download, Package,
-  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck, Receipt, Undo2, Activity,
+  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck, Receipt, Undo2, Activity, ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,8 +43,9 @@ import { FulfillmentView } from '@/components/views/fulfillment-view'
 import { BillingView } from '@/components/views/billing-view'
 import { ReturnsView } from '@/components/views/returns-view'
 import { IntegrationView } from '@/components/views/integration-view'
+import { WarrantyView } from '@/components/views/warranty-view'
 
-type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'integration' | 'branches' | 'audit' | 'settings'
+type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'warranty' | 'integration' | 'branches' | 'audit' | 'settings'
 
 const userTypeLabels: Record<UserType, string> = {
   customer: 'مشتری',
@@ -217,6 +218,7 @@ const navGroups = [
       { view: 'fulfillment' as View, label: 'fulfillment', icon: Truck },
       { view: 'billing' as View, label: 'صورتحساب', icon: Receipt },
       { view: 'returns' as View, label: 'مرجوعی و بازپرداخت', icon: Undo2 },
+      { view: 'warranty' as View, label: 'گارانتی', icon: ShieldCheck },
     ],
   },
   {
@@ -1375,6 +1377,7 @@ export default function Page() {
     fulfillment: 'fulfillment',
     billing: 'صورتحساب',
     returns: 'مرجوعی و بازپرداخت',
+    warranty: 'گارانتی',
     integration: 'داشبورد یکپارچگی',
     branches: 'شعب',
     audit: 'لاگ ممیزی',
@@ -1407,6 +1410,7 @@ export default function Page() {
           {view === 'fulfillment' && <FulfillmentView />}
           {view === 'billing' && <BillingView />}
           {view === 'returns' && <ReturnsView />}
+          {view === 'warranty' && <WarrantyView />}
           {view === 'integration' && <IntegrationView />}
           {view === 'branches' && <BranchesView />}
           {view === 'audit' && <AuditView />}

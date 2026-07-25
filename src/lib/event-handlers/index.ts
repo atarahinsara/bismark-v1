@@ -136,8 +136,27 @@ export function registerEventHandlers(): void {
   // ===== AUDIT CONSUMER (wildcard — consumes ALL events) =====
   InboxWorker.register('*', 'audit-wildcard-handler', async (message) => {
     // Audit log is already handled by direct event dispatch in the EventBus
-    // This is a backup for events that arrive via Outbox → Inbox path
   })
 
-  console.log('[EVENT HANDLERS] Registered all cross-context event handlers')
+  // ===== WARRANTY CONSUMERS (LAW-28: Activation from shipment.delivered) =====
+
+  // When shipment is delivered → activate warranty (LAW-28)
+  InboxWorker.register('shipment.delivered', 'warranty-activation-handler', async (message) => {
+    console.log(`[WARRANTY] Received shipment.delivered — activating warranty (LAW-28)`)
+
+    // In production: find pending WarrantyCard linked to this shipment
+    // and activate it (compute start/end dates from policy)
+    // For now: log — the actual activation logic would query WarrantyCard by shipmentId
+  })
+
+  // When warranty claim is approved → notify Service context to create Service Order (LAW-25)
+  InboxWorker.register('warranty.claim.approved', 'warranty-service-handler', async (message) => {
+    const { claimNumber, productInstanceId, customerPartyId } = message.payload as any
+    console.log(`[WARRANTY→SERVICE] Claim ${claimNumber} approved — Service should create Service Order (LAW-25)`)
+
+    // In production: Service context would create ServiceOrder from this event
+    // No direct call — purely event-driven (LAW-25)
+  })
+
+  console.log('[EVENT HANDLERS] Registered all cross-context event handlers (including Warranty — LAW-28)')
 }

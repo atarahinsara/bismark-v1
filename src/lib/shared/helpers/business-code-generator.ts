@@ -128,6 +128,8 @@ export const BUSINESS_CODE_DEFINITIONS: Record<
   // Warranty (Sprint 4)
   warranty_card: { prefix: 'WAR', padding: 5 },
   warranty_claim: { prefix: 'WCL', padding: 5 },
+  warranty_extension: { prefix: 'WEX', padding: 5 },
+  warranty_transfer: { prefix: 'WTR', padding: 5 },
 
   // Service (Sprint 5)
   service_request: { prefix: 'SR', padding: 5 },

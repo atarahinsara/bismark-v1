@@ -1315,3 +1315,172 @@ model SagaInstance {
   @@index([correlationId])
   @@map("saga_instances")
 }
+
+// ============================================================
+// SPRINT 4 — WARRANTY CONTEXT
+// ============================================================
+// LAW-28: Warranty Activation Only From Shipment Delivered Event
+// LAW-29: Every Warranty Claim Must Pass Inspection Before Approval
+// LAW-30: Device Timeline Is Reconstructed From Immutable Domain Events
+// ============================================================
+
+model WarrantyPolicy {
+  id              String   @id @default(cuid())
+  tenantId        String
+  productModelId  String?  // FK to ProductModel (loose — LAW-04)
+  policyName      String
+  warrantyType    String   @default("standard") // standard|extended|commercial|lifetime
+  warrantyMonths  Int      @default(12)
+  graceDays       Int      @default(0)
+  isRenewable     Boolean  @default(true)
+  coverageTerms   Json     // {parts: [...], labor: bool, ...}
+  exclusions      Json     @default("[]")
+  validFrom       DateTime @default(now())
+  validTo         DateTime?
+  isActive        Boolean  @default(true)
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  cards           WarrantyCard[]
+
+  @@unique([tenantId, productModelId, policyName])
+  @@map("warranty_policies")
+}
+
+model WarrantyCard {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  warrantyNumber      String   // business code: WAR-1403-00001
+  productInstanceId   String   // FK to ProductInstance (loose — LAW-04)
+  customerPartyId     String   // FK to Party (loose — LAW-04)
+  warrantyPolicyId    String
+  warrantyPolicy      WarrantyPolicy @relation(fields: [warrantyPolicyId], references: [id])
+  salesOrderId        String?
+  shipmentId          String?
+  activationDate      DateTime?
+  startDate           DateTime?
+  endDate             DateTime?
+  graceEndDate        DateTime?
+  status              String   @default("pending") // pending|active|expired|voided|transferred
+  extendedMonths      Int      @default(0)
+  notes               String?
+  metadata            Json?
+  version             Int      @default(1) // LAW-07
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  claims              WarrantyClaim[]
+  extensions          WarrantyExtension[]
+  transfers           WarrantyTransfer[]
+
+  @@unique([tenantId, warrantyNumber])
+  @@unique([tenantId, productInstanceId])
+  @@index([tenantId, customerPartyId])
+  @@index([tenantId, status])
+  @@map("warranty_cards")
+}
+
+model WarrantyClaim {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  claimNumber         String   // business code: WCL-1403-00001
+  warrantyCardId      String
+  warrantyCard        WarrantyCard @relation(fields: [warrantyCardId], references: [id])
+  productInstanceId   String
+  customerPartyId     String
+  claimType           String   @default("defect") // defect|damage|malfunction|doa|other
+  claimDate           DateTime @default(now())
+  description         String
+  defectDescription   String?
+  status              String   @default("draft") // draft|submitted|inspection|approved|rejected|service_order|closed
+  // LAW-29: Inspection fields
+  defectType          String?  // mechanical|electrical|cosmetic|software|other
+  defectSeverity      String?  // minor|moderate|major|critical
+  isCovered           Boolean?
+  inspectionNotes     String?
+  inspectedBy         String?
+  inspectedAt         DateTime?
+  isInspected         Boolean  @default(false)
+  // Approval
+  approvedAt          DateTime?
+  approvedBy          String?
+  approvalNotes       String?
+  rejectedAt          DateTime?
+  rejectedBy          String?
+  rejectionReason     String?
+  // Service link
+  serviceOrderId      String?
+  // Resolution
+  resolvedAt          DateTime?
+  resolutionNotes     String?
+  estimatedCost       Float?
+  actualCost          Float?
+  currencyCode        String   @default("IRR")
+  metadata            Json?
+  version             Int      @default(1) // LAW-07
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  @@unique([tenantId, claimNumber])
+  @@index([warrantyCardId])
+  @@index([tenantId, customerPartyId, claimDate])
+  @@index([tenantId, status])
+  @@map("warranty_claims")
+}
+
+model WarrantyExtension {
+  id              String   @id @default(cuid())
+  tenantId        String
+  extensionNumber String   // business code: WEX-1403-00001
+  warrantyCardId  String
+  warrantyCard    WarrantyCard @relation(fields: [warrantyCardId], references: [id])
+  extensionType   String   // free|paid|promotional
+  extensionMonths Int
+  newEndDate      DateTime
+  amountPaid      Float    @default(0)
+  currencyCode    String   @default("IRR")
+  paymentId       String?
+  activationDate  DateTime @default(now())
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([tenantId, extensionNumber])
+  @@index([warrantyCardId])
+  @@map("warranty_extensions")
+}
+
+model WarrantyTransfer {
+  id              String   @id @default(cuid())
+  tenantId        String
+  transferNumber  String   // business code: WTR-1403-00001
+  warrantyCardId  String
+  warrantyCard    WarrantyCard @relation(fields: [warrantyCardId], references: [id])
+  productInstanceId String
+  fromPartyId     String
+  toPartyId       String
+  transferDate    DateTime @default(now())
+  reason          String?
+  transferFee     Float    @default(0)
+  currencyCode    String   @default("IRR")
+  approvalStatus  String   @default("pending") // pending|approved|rejected
+  approvedBy      String?
+  approvedAt      DateTime?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, transferNumber])
+  @@index([warrantyCardId])
+  @@map("warranty_transfers")
+}
