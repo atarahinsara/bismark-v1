@@ -1,0 +1,29 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * BISMARK ERP — Laravel 12 artisan entrypoint.
+ *
+ * Placeholder stub — the real artisan binary is provided by Laravel framework
+ * after `composer install` is run in a PHP-enabled environment.
+ */
+
+use Symfony\Component\Console\Input\ArgvInput;
+
+define('LARAVEL_START', microtime(true));
+
+// BISMARK NOTE: This stub allows the repository layout to be self-describing
+// even when PHP is not installed in the current sandbox. Replace this file
+// with the official `vendor/laravel/framework/artisan` after composer install.
+
+if (file_exists(__DIR__.'/vendor/autoload.php')) {
+    require __DIR__.'/vendor/autoload.php';
+} else {
+    fwrite(STDERR, "BISMARK: composer dependencies are not installed. Run `composer install` first.\n");
+    exit(1);
+}
+
+$status = (require __DIR__.'/bootstrap/app.php')
+    ->handleCommand(new ArgvInput);
+
+exit($status);

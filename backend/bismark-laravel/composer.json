@@ -1,0 +1,87 @@
+{
+    "name": "bismark/erp-backend",
+    "type": "project",
+    "description": "BISMARK ERP — Enterprise Resource Planning Backend (Laravel 12)",
+    "keywords": ["erp", "bismark", "laravel", "enterprise"],
+    "license": "Proprietary",
+    "require": {
+        "php": "^8.3",
+        "laravel/framework": "^12.0",
+        "laravel/sanctum": "^4.0",
+        "darkaonline/l5-swagger": "^9.0",
+        "zircote/swagger-php": "^5.0",
+        "predis/predis": "^2.0",
+        "maatwebsite/excel": "^3.1",
+        "spatie/laravel-permission": "^6.0",
+        "spatie/laravel-activitylog": "^4.7",
+        "webpatser/laravel-uuid": "^4.0",
+        "firebase/php-jwt": "^6.10",
+        "pragmarx/google2fa": "^8.0",
+        "bacon/bacon-qr-code": "^3.0",
+        "league/fractal": "^0.20.1",
+        "spatie/laravel-event-sourcing": "^7.0",
+        "owen-it/laravel-auditing": "^13.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.13",
+        "laravel/sail": "^1.26",
+        "mockery/mockery": "^1.6",
+        "phpunit/phpunit": "^11.0",
+        "nunomaduro/collision": "^8.0",
+        "larastan/larastan": "^3.0",
+        "barryvdh/laravel-ide-helper": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover --ansi"
+        ],
+        "post-update-cmd": [
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
+        ],
+        "post-root-package-install": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "post-create-project-cmd": [
+            "@php artisan key:generate --ansi"
+        ],
+        "dev": [
+            "Composer\\Config::disableProcessTimeout",
+            "npx concurrently -k -c \"#93c5fd,#c4b5fd,#fb7185\" \"php artisan serve\" \"php artisan queue:listen\" \"npm run dev --prefix=../../\""
+        ],
+        "test": "php artisan test",
+        "lint": "vendor/bin/pint --test",
+        "lint:fix": "vendor/bin/pint",
+        "analyse": "vendor/bin/phpstan analyse",
+        "migrate": "php artisan migrate",
+        "migrate:fresh": "php artisan migrate:fresh --seed",
+        "swagger:generate": "php artisan l5-swagger:generate"
+    },
+    "extra": {
+        "laravel": {
+            "dont-discover": []
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

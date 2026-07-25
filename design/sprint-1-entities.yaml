@@ -1,0 +1,378 @@
+# BISMARK ERP — Sprint 1 Entity Definitions
+# This is the Source of Truth for the Scaffold Generator
+# The generator reads this YAML and produces Laravel + Next.js code
+
+project:
+  name: BISMARK ERP
+  version: 1.0.0
+  backend: laravel  # Laravel 12
+  frontend: nextjs  # Next.js 16
+  database: postgresql
+  conventions:
+    id_type: uuid_v7          # Primary keys for main tables
+    junction_id: bigserial     # Junction tables use BIGSERIAL
+    tenant_scoped: true        # All tables have tenant_id
+    soft_delete: true          # deleted_at on mutable tables
+    audit_columns: true        # created_by/at, updated_by/at
+    business_code: true        # LAW-02: business_code on aggregate roots
+
+# ============================================================
+# SHARED KERNEL (no business logic)
+# ============================================================
+shared_kernel:
+  value_objects:
+    - TenantId
+    - UuidV7
+    - Money
+    - DateTimeRange
+    - Locale
+    - ActorRef
+    - Pagination
+  base_classes:
+    - AggregateRoot
+    - DomainEvent
+    - Entity
+  concerns:
+    - HasAuditability
+    - BelongsToTenant
+    - IsSoftDeletable
+
+# ============================================================
+# SPRINT 1 ENTITIES
+# ============================================================
+entities:
+  # ===== IDENTITY CONTEXT =====
+  - name: User
+    context: Identity
+    table: users
+    aggregate_root: true
+    business_code: false  # uses username, not business code
+    description: "Core identity for all users (Web + Mobile)"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: tenant_id, type: uuid, required: true, fk: tenants }
+      - { name: username, type: string, length: 50, required: true, unique_within_tenant: true }
+      - { name: display_name, type: string, length: 200, required: true }
+      - { name: email, type: string, length: 255, required: false, unique_within_tenant: true }
+      - { name: phone, type: string, length: 20, required: false }
+      - { name: user_type, type: enum, values: [customer, representative, technician, service_center, staff], default: staff }
+      - { name: status, type: enum, values: [active, suspended, locked, deleted], default: active }
+      - { name: locale, type: string, length: 10, default: "fa-IR" }
+      - { name: is_active, type: boolean, default: true }
+      - { name: locked_until, type: timestamptz, nullable: true }
+      - { name: last_login_at, type: timestamptz, nullable: true }
+      - { name: metadata, type: jsonb, default: "{}" }
+      - { name: created_by, type: uuid, nullable: true, fk: users }
+      - { name: updated_by, type: uuid, nullable: true, fk: users }
+      - { name: created_at, type: timestamptz, default: now }
+      - { name: updated_at, type: timestamptz, default: now }
+      - { name: deleted_at, type: timestamptz, nullable: true }
+    indexes:
+      - { name: idx_users_tenant, columns: [tenant_id] }
+      - { name: idx_users_tenant_status, columns: [tenant_id, status] }
+      - { name: idx_users_active_partial, columns: [tenant_id], where: "deleted_at IS NULL AND is_active = TRUE" }
+    relationships:
+      - { name: roles, type: many_to_many, via: user_role_assignments }
+      - { name: sessions, type: one_to_many, target: Session }
+    api:
+      base: /users
+      permissions_prefix: users
+      actions: [list, show, create, update, delete, suspend, unsuspend, lock, unlock]
+
+  - name: Role
+    context: Identity
+    table: roles
+    aggregate_root: true
+    business_code: false
+    description: "Role for RBAC"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: tenant_id, type: uuid, required: true, fk: tenants }
+      - { name: key, type: string, length: 50, required: true, unique_within_tenant: true }
+      - { name: name, type: string, length: 100, required: true }
+      - { name: description, type: text, nullable: true }
+      - { name: is_system, type: boolean, default: false }
+      - { name: created_by, type: uuid, nullable: true, fk: users }
+      - { name: updated_by, type: uuid, nullable: true, fk: users }
+      - { name: created_at, type: timestamptz, default: now }
+      - { name: updated_at, type: timestamptz, default: now }
+      - { name: deleted_at, type: timestamptz, nullable: true }
+    relationships:
+      - { name: permissions, type: many_to_many, via: role_permissions }
+      - { name: users, type: many_to_many, via: user_role_assignments }
+    api:
+      base: /roles
+      permissions_prefix: rbac
+      actions: [list, show, create, update, delete]
+
+  - name: Permission
+    context: Identity
+    table: permissions
+    aggregate_root: true
+    business_code: false
+    tenant_scoped: false  # global catalog
+    description: "Permission catalog (module.action)"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: key, type: string, length: 100, required: true, unique: true }
+      - { name: module, type: string, length: 50, required: true }
+      - { name: action, type: string, length: 50, required: true }
+      - { name: description, type: text, nullable: true }
+      - { name: is_system, type: boolean, default: true }
+      - { name: created_at, type: timestamptz, default: now }
+    api:
+      base: /permissions
+      permissions_prefix: rbac
+      actions: [list, show]
+
+  - name: Session
+    context: Identity
+    table: sessions
+    aggregate_root: true
+    business_code: false
+    description: "Active user session"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: user_id, type: uuid, required: true, fk: users }
+      - { name: tenant_id, type: uuid, required: true, fk: tenants }
+      - { name: status, type: enum, values: [active, expired, revoked], default: active }
+      - { name: ip_address, type: inet, required: true }
+      - { name: user_agent, type: text, nullable: true }
+      - { name: device_fingerprint, type: string, length: 255, nullable: true }
+      - { name: issued_at, type: timestamptz, default: now }
+      - { name: last_activity_at, type: timestamptz, default: now }
+      - { name: expires_at, type: timestamptz, required: true }
+      - { name: absolute_expires_at, type: timestamptz, required: true }
+      - { name: revoked_at, type: timestamptz, nullable: true }
+      - { name: revoked_reason, type: text, nullable: true }
+      - { name: metadata, type: jsonb, default: "{}" }
+    api:
+      base: /auth/sessions
+      permissions_prefix: auth
+      actions: [list, revoke]
+
+  # ===== ORGANIZATION CONTEXT =====
+  - name: Branch
+    context: Organization
+    table: branches
+    aggregate_root: true
+    business_code: false
+    description: "Sales branch / dealership"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: tenant_id, type: uuid, required: true, fk: tenants }
+      - { name: name, type: string, length: 200, required: true }
+      - { name: code, type: string, length: 50, required: true, unique_within_tenant: true }
+      - { name: parent_id, type: uuid, nullable: true, fk: branches }
+      - { name: address, type: jsonb, nullable: true }
+      - { name: contact_phone, type: string, length: 20, nullable: true }
+      - { name: is_active, type: boolean, default: true }
+      - { name: created_by, type: uuid, nullable: true, fk: users }
+      - { name: updated_by, type: uuid, nullable: true, fk: users }
+      - { name: created_at, type: timestamptz, default: now }
+      - { name: updated_at, type: timestamptz, default: now }
+      - { name: deleted_at, type: timestamptz, nullable: true }
+    api:
+      base: /branches
+      permissions_prefix: branches
+      actions: [list, show, create, update, delete]
+
+  - name: Department
+    context: Organization
+    table: departments
+    aggregate_root: true
+    business_code: false
+    description: "Internal department"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: tenant_id, type: uuid, required: true, fk: tenants }
+      - { name: name, type: string, length: 200, required: true }
+      - { name: code, type: string, length: 50, required: true, unique_within_tenant: true }
+      - { name: branch_id, type: uuid, nullable: true, fk: branches }
+      - { name: parent_id, type: uuid, nullable: true, fk: departments }
+      - { name: is_active, type: boolean, default: true }
+      - { name: created_at, type: timestamptz, default: now }
+      - { name: updated_at, type: timestamptz, default: now }
+      - { name: deleted_at, type: timestamptz, nullable: true }
+    api:
+      base: /departments
+      permissions_prefix: organization
+      actions: [list, show, create, update, delete]
+
+  # ===== PARTY CONTEXT =====
+  - name: Party
+    context: Party
+    table: parties
+    aggregate_root: true
+    business_code: true
+    business_code_prefix: PRT
+    description: "Base party (person or organization)"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: tenant_id, type: uuid, required: true, fk: tenants }
+      - { name: business_code, type: string, length: 50, required: true, unique_within_tenant: true }
+      - { name: party_type, type: enum, values: [person, organization], required: true }
+      - { name: display_name, type: string, length: 300, required: true }
+      - { name: status, type: enum, values: [active, inactive, suspended, blacklisted], default: active }
+      - { name: tax_id, type: string, length: 50, nullable: true }
+      - { name: registration_no, type: string, length: 50, nullable: true }
+      - { name: metadata, type: jsonb, default: "{}" }
+      - { name: created_by, type: uuid, nullable: true, fk: users }
+      - { name: updated_by, type: uuid, nullable: true, fk: users }
+      - { name: created_at, type: timestamptz, default: now }
+      - { name: updated_at, type: timestamptz, default: now }
+      - { name: deleted_at, type: timestamptz, nullable: true }
+    relationships:
+      - { name: person, type: one_to_one, target: Person, nullable: true }
+      - { name: organization, type: one_to_one, target: Organization, nullable: true }
+      - { name: roles, type: many_to_many, via: party_role_assignments }
+    api:
+      base: /parties
+      permissions_prefix: parties
+      actions: [list, show, create, update, delete]
+
+  - name: Person
+    context: Party
+    table: persons
+    aggregate_root: false  # child of Party
+    description: "Person details (1:1 with Party where type=person)"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: party_id, type: uuid, required: true, unique: true, fk: parties }
+      - { name: tenant_id, type: uuid, required: true, fk: tenants }
+      - { name: first_name, type: string, length: 100, required: true }
+      - { name: last_name, type: string, length: 100, required: true }
+      - { name: national_id, type: string, length: 20, nullable: true }
+      - { name: birth_date, type: date, nullable: true }
+      - { name: gender, type: enum, values: [male, female, other], nullable: true }
+      - { name: nationality, type: string, length: 10, default: "IR" }
+      - { name: created_at, type: timestamptz, default: now }
+      - { name: updated_at, type: timestamptz, default: now }
+      - { name: deleted_at, type: timestamptz, nullable: true }
+
+  - name: Organization
+    context: Party
+    table: organizations
+    aggregate_root: false
+    description: "Organization details (1:1 with Party where type=organization)"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: party_id, type: uuid, required: true, unique: true, fk: parties }
+      - { name: tenant_id, type: uuid, required: true, fk: tenants }
+      - { name: legal_name, type: string, length: 300, required: true }
+      - { name: legal_name_en, type: string, length: 300, nullable: true }
+      - { name: organization_type, type: string, length: 50, nullable: true }
+      - { name: established_date, type: date, nullable: true }
+      - { name: parent_org_id, type: uuid, nullable: true, fk: parties }
+      - { name: industry_code, type: string, length: 20, nullable: true }
+      - { name: employee_count, type: integer, nullable: true }
+      - { name: created_at, type: timestamptz, default: now }
+      - { name: updated_at, type: timestamptz, default: now }
+      - { name: deleted_at, type: timestamptz, nullable: true }
+
+  # ===== MASTER DATA (Global, not tenant-scoped) =====
+  - name: Country
+    context: MasterData
+    table: countries
+    aggregate_root: true
+    tenant_scoped: false
+    description: "Country master data"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: iso_code, type: string, length: 2, required: true, unique: true }
+      - { name: iso3_code, type: string, length: 3, required: true, unique: true }
+      - { name: name, type: string, length: 100, required: true }
+      - { name: name_fa, type: string, length: 100, required: true }
+      - { name: phone_code, type: string, length: 5, nullable: true }
+      - { name: currency_code, type: string, length: 3, nullable: true }
+      - { name: is_active, type: boolean, default: true }
+      - { name: created_at, type: timestamptz, default: now }
+    api:
+      base: /countries
+      permissions_prefix: master_data
+      actions: [list, show]
+
+  - name: Province
+    context: MasterData
+    table: provinces
+    aggregate_root: true
+    tenant_scoped: false
+    description: "Province/State"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: country_id, type: uuid, required: true, fk: countries }
+      - { name: code, type: string, length: 10, required: true }
+      - { name: name, type: string, length: 100, required: true }
+      - { name: name_fa, type: string, length: 100, required: true }
+      - { name: is_active, type: boolean, default: true }
+      - { name: created_at, type: timestamptz, default: now }
+    api:
+      base: /provinces
+      permissions_prefix: master_data
+      actions: [list, show]
+
+  - name: City
+    context: MasterData
+    table: cities
+    aggregate_root: true
+    tenant_scoped: false
+    description: "City"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: province_id, type: uuid, required: true, fk: provinces }
+      - { name: code, type: string, length: 10, required: true }
+      - { name: name, type: string, length: 100, required: true }
+      - { name: name_fa, type: string, length: 100, required: true }
+      - { name: is_active, type: boolean, default: true }
+      - { name: created_at, type: timestamptz, default: now }
+    api:
+      base: /cities
+      permissions_prefix: master_data
+      actions: [list, show]
+
+  - name: Currency
+    context: MasterData
+    table: currencies
+    aggregate_root: true
+    tenant_scoped: false
+    description: "Currency"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: code, type: string, length: 3, required: true, unique: true }
+      - { name: name, type: string, length: 100, required: true }
+      - { name: name_fa, type: string, length: 100, required: true }
+      - { name: symbol, type: string, length: 10, nullable: true }
+      - { name: decimal_places, type: integer, default: 2 }
+      - { name: exchange_rate, type: decimal, precision: 15, scale: 6, nullable: true }
+      - { name: is_active, type: boolean, default: true }
+      - { name: created_at, type: timestamptz, default: now }
+    api:
+      base: /currencies
+      permissions_prefix: master_data
+      actions: [list, show]
+
+  - name: Language
+    context: MasterData
+    table: languages
+    aggregate_root: true
+    tenant_scoped: false
+    description: "Supported languages/locales"
+    fields:
+      - { name: id, type: uuid, primary: true, default: uuid_v7 }
+      - { name: code, type: string, length: 10, required: true, unique: true }
+      - { name: name, type: string, length: 100, required: true }
+      - { name: name_fa, type: string, length: 100, required: true }
+      - { name: direction, type: enum, values: [ltr, rtl], required: true }
+      - { name: is_active, type: boolean, default: true }
+      - { name: created_at, type: timestamptz, default: now }
+    api:
+      base: /languages
+      permissions_prefix: master_data
+      actions: [list, show]
+
+# ============================================================
+# SYSTEM TABLES (pre-existing, not generated as entities)
+# ============================================================
+system_tables:
+  - tenants
+  - outbox_events
