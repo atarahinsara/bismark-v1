@@ -42,6 +42,13 @@ export * from './helpers/business-code-generator'
 export * from './infra/prisma-event-bus'
 export * from './infra/idempotency-helper'
 export * from './infra/optimistic-lock-helper'
+export * from './infra/unit-of-work'
+
+// Outbox (LAW-08)
+export * from './outbox'
+
+// Snapshot Engine (LAW-10)
+export * from './snapshot'
 
 // Domain Services (shared business logic)
 export * from './domain-services'
@@ -57,3 +64,5 @@ export * from './laws/law-07'
 export * from './laws/law-08'
 export * from './laws/law-09'
 export * from './laws/law-10'
+export * from './laws/law-11'
+export * from './laws/law-12'

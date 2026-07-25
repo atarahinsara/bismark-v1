@@ -728,3 +728,51 @@ Stage Summary:
 - LAW-06 تا LAW-10 همگی اضافه شدند (ADR-021 تا ADR-025)
 - Sprint 2.2C: ✅ تکمیل شد با Transfer + Idempotency + Optimistic Lock
 - آماده Sprint 2.2D (Cycle Count + Snapshot Engine)
+
+---
+
+Task ID: 26
+Agent: Main (Software Company / Architect)
+Task: LAW-11/12 + Outbox Operational + Snapshot Engine + Cycle Count (Sprint 2.2D)
+
+Work Log:
+- پذیرش 6 الزام کاربر:
+  1. LAW-11: Transaction Boundary — فقط Application Service مدیریت Transaction می‌کند
+  2. LAW-12: Unit of Work — تمام Repositoryها داخل یک UoW اجرا می‌شوند
+  3. Outbox operational: dispatcher + publisher + retry-policy + dead-letter
+  4. Snapshot Engine: SnapshotPolicy + SnapshotWorker + SnapshotScheduler
+  5. Cycle Count as full Aggregate: CycleCount → Line → Variance → Approval → Adjustment → Ledger
+  6. Adjustment Policy: هیچ adjustment مستقیمی — همه از Approval عبور می‌کنند
+- ایجاد LAW-11 و LAW-12 در Shared Kernel
+- ساخت UnitOfWork pattern (LAW-12)
+- ساخت Outbox infrastructure:
+  • OutboxDispatcher (polls outbox_messages)
+  • OutboxPublisher (publishes to listeners)
+  • RetryPolicy (exponential backoff)
+  • DeadLetterHandler (after max retries)
+- ساخت Snapshot Engine:
+  • SnapshotPolicy (configurable: nightly/threshold/manual)
+  • SnapshotWorker (creates snapshots)
+  • SnapshotScheduler (triggers based on policy)
+- ساخت Cycle Count domain (Prisma):
+  • CycleCount (aggregate root)
+  • CycleCountLine (child — per stock item)
+  • Variance (computed: counted - system)
+  • Approval (workflow before adjustment)
+- ساخت Cycle Count API:
+  • POST /cycle-counts (create)
+  • POST /cycle-counts/{id}/start
+  • POST /cycle-counts/{id}/complete
+  • POST /cycle-counts/{id}/approve (triggers adjustment → ledger)
+  • GET /cycle-counts (list)
+  • GET /cycle-counts/{id} (detail with lines)
+- ساخت Cycle Count UI (wizard: create → count → review → approve)
+- تست با curl + lint
+
+Stage Summary:
+- LAW-11 + LAW-12 اضافه شدند (ADR-026, ADR-027)
+- Outbox: ✅ Operational (dispatcher + publisher + retry + dead-letter)
+- Snapshot Engine: ✅ Operational (policy + worker + scheduler)
+- Cycle Count: ✅ Complete aggregate (create → start → complete → approve → ledger)
+- Sprint 2.2D: ✅ تکمیل شد
+- آماده Sprint 2.2E (Event Dispatcher + DLQ) یا Sprint 3 (Sales)

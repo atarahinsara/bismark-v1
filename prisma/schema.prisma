@@ -669,3 +669,67 @@ model StockTransferLine {
   @@index([transferId])
   @@map("stock_transfer_lines")
 }
+
+// ============================================================
+// SPRINT 2.2D — Cycle Count (Full Aggregate: Count → Variance → Approval → Adjustment → Ledger)
+// ============================================================
+// LAW: No direct adjustments — all adjustments go through approval flow
+// ============================================================
+
+model CycleCount {
+  id              String   @id @default(cuid())
+  tenantId        String
+  countNumber     String   // business code: SC-1403-00001
+  warehouseId     String
+  countType       String   // full|cycle|spot
+  status          String   @default("draft") // draft|in_progress|completed|approved|adjusted|cancelled
+  scheduledDate   DateTime @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  approvedAt      DateTime?
+  approvedBy      String?
+  adjustedAt      DateTime?
+  countedBy       String?
+  reconciledBy    String?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  lines           CycleCountLine[]
+
+  @@unique([tenantId, countNumber])
+  @@index([warehouseId, status])
+  @@map("cycle_counts")
+}
+
+model CycleCountLine {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  cycleCountId        String
+  cycleCount          CycleCount @relation(fields: [cycleCountId], references: [id])
+  stockItemId         String
+  productId           String
+  productInstanceId   String?
+  batchNumber         String?
+  warehouseId         String
+  locationId          String?
+  // System quantity (snapshot at time of count start — LAW-05: from ledger)
+  systemQuantity      Float    @default(0)
+  // Counted quantity (entered by person doing physical count)
+  countedQuantity     Float?
+  // Variance = counted - system (computed, not stored as truth)
+  // recountQuantity   Float?
+  isReconciled        Boolean  @default(false)
+  varianceReason      String?
+  notes               String?
+  countedAt           DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([cycleCountId, stockItemId])
+  @@index([cycleCountId])
+  @@map("cycle_count_lines")
+}

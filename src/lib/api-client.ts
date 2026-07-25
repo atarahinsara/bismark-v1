@@ -450,3 +450,71 @@ export const movementsApi = {
     return request<PaginatedResponse<Movement>>(`/movements?${params}`)
   },
 }
+
+// ============================================================
+// Cycle Counts (Sprint 2.2D — Full Aggregate: Count → Variance → Approval → Adjustment → Ledger)
+// ============================================================
+
+export interface CycleCount {
+  id: string
+  countNumber: string
+  warehouseId: string
+  countType: string // full|cycle|spot
+  status: string // draft|in_progress|completed|approved|adjusted|cancelled
+  scheduledDate: string
+  startedAt: string | null
+  completedAt: string | null
+  approvedAt: string | null
+  adjustedAt: string | null
+  notes: string | null
+  version: number
+  lineCount: number
+  lines?: CycleCountLine[]
+}
+
+export interface CycleCountLine {
+  id: string
+  stockItemId: string
+  productId: string
+  productInstanceId: string | null
+  batchNumber: string | null
+  systemQuantity: number
+  countedQuantity: number | null
+  variance: number | null // computed: counted - system
+  isReconciled: boolean
+  varianceReason: string | null
+  countedAt: string | null
+}
+
+export const cycleCountsApi = {
+  list: (page = 1, perPage = 20, status?: string) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (status) params.set('status', status)
+    return request<PaginatedResponse<CycleCount>>(`/cycle-counts?${params}`)
+  },
+  get: (id: string) => request<{ data: CycleCount & { lines: CycleCountLine[] } }>(`/cycle-counts/${id}`),
+  create: (data: Partial<CycleCount>, idempotencyKey?: string) =>
+    request<{ data: CycleCount }>(`/cycle-counts`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  start: (id: string, data: { countedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string } }>(`/cycle-counts/${id}/start`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  complete: (id: string, data: { lines: Array<{ lineId: string; countedQuantity: number; reason?: string }> }, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string } }>(`/cycle-counts/${id}/complete`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  approve: (id: string, data: { approvedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; countNumber: string; status: string; adjustmentsCreated: number; totalVariance: number } }>(`/cycle-counts/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+}
