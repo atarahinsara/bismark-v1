@@ -1124,3 +1124,39 @@ Stage Summary:
 - Sprint 6.2: ✅ Complete (General Ledger + Closing Engine)
 - Total Architecture Laws: ۳۹ (نهایی)
 - آماده Sprint 6.3 (AR/AP)
+
+---
+
+Task ID: 37
+Agent: Main (Software Company / Architect)
+Task: LAW-40/41/42 + Sprint 6.3 (AR/AP Sub-Ledger Engine)
+
+Work Log:
+- پذیرش 3 قانون نهایی Sub-Ledger:
+  • LAW-40: Subledger Must Reconcile With General Ledger
+  • LAW-41: Every Allocation Must Be Reversible
+  • LAW-42: Customer/Vendor Balance Is Derived (not stored)
+- Prisma models (4 models): ARTransaction, ARAllocation, APTransaction, APAllocation
+- API routes (6 endpoints):
+  • GET /ar/customers (list with derived balances — LAW-42)
+  • GET /ar/customers/{id}/statement (opening, running, closing balance)
+  • GET /ar/customers/{id}/aging (current, 30, 60, 90, 120+ buckets)
+  • POST /ar/allocate (LAW-41: append-only allocation)
+  • POST /ar/unallocate (LAW-41: reversal allocation, restore open amounts)
+  • GET /reconciliation (LAW-40: AR/AP subledger vs GL control account)
+- Reconciliation checks (LAW-40):
+  • AR: SUM(customer open balances) === GL AR Control Account
+  • AP: SUM(vendor open balances) === GL AP Control Account
+  • Result: in_balance ✅ (diff = 0 for both)
+- Aging Report: 5 buckets (current, 1-30, 31-60, 61-90, 90+)
+- Customer Statement: opening → transactions → running balance → closing
+- Allocation Engine: append-only with reversal support (LAW-41)
+- Tests: 68/68 passing
+- Lint: 0 errors
+
+Stage Summary:
+- LAW-40/41/42 اضافه شدند (ADR-055, ADR-056, ADR-057)
+- Sprint 6.3: ✅ Complete (AR/AP Sub-Ledger Engine)
+- Total Architecture Laws: ۴۲ (نهایی)
+- Reconciliation: in_balance (AR diff = 0, AP diff = 0) ✅
+- آماده Sprint 6.4 (Tax Engine)

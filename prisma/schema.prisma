@@ -1882,3 +1882,103 @@ model JournalEntryLine {
   @@index([costCenterId])
   @@map("journal_entry_lines")
 }
+
+// ============================================================
+// SPRINT 6.3 — AR/AP SUB-LEDGER ENGINE
+// ============================================================
+// LAW-40: Subledger Must Reconcile With General Ledger
+// LAW-41: Every Allocation Must Be Reversible
+// LAW-42: Customer/Vendor Balance Is Derived (not stored)
+// ============================================================
+
+model ARTransaction {
+  id              String   @id @default(cuid())
+  tenantId        String
+  customerPartyId String
+  transactionType String   // invoice|payment|credit_note|refund|opening
+  referenceType   String   // sales_invoice|payment|credit_note|refund
+  referenceId     String
+  entryDate       DateTime @default(now())
+  amount          Float    // positive = debit (invoice), negative = credit (payment)
+  openAmount      Float    @default(0) // remaining unallocated (derived but cached for query perf)
+  status          String   @default("open") // open|partially_allocated|fully_allocated
+  description     String?
+  metadata        Json?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  allocations     ARAllocation[] @relation("DebitAllocations")
+  creditAllocations ARAllocation[] @relation("CreditAllocations")
+
+  @@index([tenantId, customerPartyId, entryDate])
+  @@index([status])
+  @@index([referenceType, referenceId])
+  @@map("ar_transactions")
+}
+
+model ARAllocation {
+  id                String   @id @default(cuid())
+  tenantId          String
+  customerPartyId   String
+  debitTransactionId  String  // ARTransaction (invoice/charge)
+  debitTransaction    ARTransaction @relation("DebitAllocations", fields: [debitTransactionId], references: [id])
+  creditTransactionId String  // ARTransaction (payment/credit)
+  creditTransaction   ARTransaction @relation("CreditAllocations", fields: [creditTransactionId], references: [id])
+  allocatedAmount   Float    // positive = allocate, negative = unallocate (reversal — LAW-41)
+  allocationDate    DateTime @default(now())
+  allocatedBy       String?
+  reversalOfId      String?  // if this is a reversal, references original allocation (LAW-41)
+  notes             String?
+  createdAt         DateTime @default(now())
+
+  @@index([debitTransactionId])
+  @@index([creditTransactionId])
+  @@map("ar_allocations")
+}
+
+model APTransaction {
+  id              String   @id @default(cuid())
+  tenantId        String
+  vendorPartyId   String
+  transactionType String   // vendor_bill|payment|credit|opening
+  referenceType   String   // ap_invoice|payment|credit
+  referenceId     String
+  entryDate       DateTime @default(now())
+  amount          Float    // positive = credit (bill owed), negative = debit (payment)
+  openAmount      Float    @default(0)
+  status          String   @default("open") // open|partially_allocated|fully_allocated
+  description     String?
+  metadata        Json?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  allocations     APAllocation[] @relation("DebitAllocations")
+  creditAllocations APAllocation[] @relation("CreditAllocations")
+
+  @@index([tenantId, vendorPartyId, entryDate])
+  @@index([status])
+  @@index([referenceType, referenceId])
+  @@map("ap_transactions")
+}
+
+model APAllocation {
+  id                String   @id @default(cuid())
+  tenantId          String
+  vendorPartyId     String
+  debitTransactionId  String  // APTransaction (payment)
+  debitTransaction    APTransaction @relation("DebitAllocations", fields: [debitTransactionId], references: [id])
+  creditTransactionId String  // APTransaction (vendor bill)
+  creditTransaction   APTransaction @relation("CreditAllocations", fields: [creditTransactionId], references: [id])
+  allocatedAmount   Float    // positive = allocate, negative = unallocate (LAW-41)
+  allocationDate    DateTime @default(now())
+  allocatedBy       String?
+  reversalOfId      String?
+  notes             String?
+  createdAt         DateTime @default(now())
+
+  @@index([debitTransactionId])
+  @@index([creditTransactionId])
+  @@map("ap_allocations")
+}
