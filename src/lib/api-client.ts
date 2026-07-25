@@ -518,3 +518,93 @@ export const cycleCountsApi = {
       headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
     }),
 }
+
+// ============================================================
+// Sales Orders (Sprint 3.1 — Sales Foundation)
+// ============================================================
+
+export interface SalesOrder {
+  id: string
+  orderNumber: string
+  customerPartyId: string
+  salesRepPartyId: string | null
+  branchId: string | null
+  orderDate: string
+  expectedDelivery: string | null
+  actualDelivery: string | null
+  status: string // draft|pending_approval|approved|rejected|invoiced|shipped|partially_shipped|completed|cancelled
+  paymentStatus: string // unpaid|partial|paid
+  subtotal: number
+  discountAmount: number
+  taxAmount: number
+  shippingAmount: number
+  totalAmount: number
+  currencyCode: string
+  notes: string | null
+  version: number
+  lineCount: number
+  lines?: SalesOrderLine[]
+}
+
+export interface SalesOrderLine {
+  id: string
+  lineNumber: number
+  productId: string
+  productInstanceId: string | null
+  quantityOrdered: number
+  quantityReserved: number
+  quantityShipped: number
+  quantityReturned: number
+  unitPrice: number
+  discountPercent: number
+  discountAmount: number
+  taxPercent: number
+  taxAmount: number
+  lineTotal: number
+  notes: string | null
+}
+
+export const salesOrdersApi = {
+  list: (page = 1, perPage = 20, filters: { status?: string; customerPartyId?: string } = {}) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (filters.status) params.set('status', filters.status)
+    if (filters.customerPartyId) params.set('customer_party_id', filters.customerPartyId)
+    return request<PaginatedResponse<SalesOrder>>(`/sales-orders?${params}`)
+  },
+  get: (id: string) => request<{ data: SalesOrder & { lines: SalesOrderLine[] } }>(`/sales-orders/${id}`),
+  create: (data: {
+    customerPartyId: string
+    salesRepPartyId?: string
+    branchId?: string
+    expectedDelivery?: string
+    notes?: string
+    currencyCode?: string
+    shippingAmount?: number
+    lines: Array<{
+      productId: string
+      productInstanceId?: string
+      quantityOrdered: number
+      unitPrice: number
+      discountPercent?: number
+      taxPercent?: number
+      notes?: string
+    }>
+  }, idempotencyKey?: string) =>
+    request<{ data: SalesOrder }>(`/sales-orders`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  approve: (id: string, data: { approvedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; orderNumber: string; status: string; message: string } }>(`/sales-orders/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  cancel: (id: string, data: { reason?: string; cancelledBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; orderNumber: string; status: string } }>(`/sales-orders/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+}

@@ -118,6 +118,7 @@ export const BUSINESS_CODE_DEFINITIONS: Record<
   payment: { prefix: 'PAY', padding: 5 },
   sales_return: { prefix: 'RET', padding: 5 },
   price_list: { prefix: 'PL', padding: 3 },
+  quote: { prefix: 'QUO', padding: 5 },
 
   // Warranty (Sprint 4)
   warranty_card: { prefix: 'WAR', padding: 5 },

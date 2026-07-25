@@ -733,3 +733,166 @@ model CycleCountLine {
   @@index([cycleCountId])
   @@map("cycle_count_lines")
 }
+
+// ============================================================
+// SPRINT 3.1 — SALES FOUNDATION
+// ============================================================
+// SalesOrder, SalesOrderLine, PriceList, PriceListLine, Quote, QuoteLine
+// All 15 Architecture Laws enforced.
+// ============================================================
+
+model SalesOrder {
+  id              String   @id @default(cuid())
+  tenantId        String
+  orderNumber     String   // business code: SO-1403-00001
+  customerPartyId String   // FK to Party (loose, cross-context — LAW-04)
+  salesRepPartyId String?
+  branchId        String?
+  orderDate       DateTime @default(now())
+  expectedDelivery DateTime?
+  actualDelivery  DateTime?
+  status          String   @default("draft") // draft|pending_approval|approved|rejected|invoiced|shipped|partially_shipped|completed|cancelled
+  paymentStatus   String   @default("unpaid") // unpaid|partial|paid
+
+  // Financial fields
+  subtotal        Float    @default(0)
+  discountAmount  Float    @default(0)
+  taxAmount       Float    @default(0)
+  shippingAmount  Float    @default(0)
+  totalAmount     Float    @default(0)
+  currencyCode    String   @default("IRR")
+
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07: Optimistic Lock
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  lines           SalesOrderLine[]
+
+  @@unique([tenantId, orderNumber])
+  @@index([tenantId, customerPartyId, orderDate])
+  @@index([tenantId, status])
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  salesOrderId        String
+  salesOrder          SalesOrder @relation(fields: [salesOrderId], references: [id])
+  lineNumber          Int
+  productId           String   // FK to Product (loose — LAW-04)
+  productInstanceId   String?  // for serialized products
+  quantityOrdered     Float
+  quantityReserved    Float    @default(0)
+  quantityShipped     Float    @default(0)
+  quantityReturned    Float    @default(0)
+  unitPrice           Float
+  discountPercent     Float    @default(0)
+  discountAmount      Float    @default(0)
+  taxPercent          Float    @default(0)
+  taxAmount           Float    @default(0)
+  lineTotal           Float
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([salesOrderId, lineNumber])
+  @@index([productId])
+  @@map("sales_order_lines")
+}
+
+model PriceList {
+  id              String   @id @default(cuid())
+  tenantId        String
+  listCode        String   // business code: PL-1403-001
+  name            String
+  priceType       String   // retail|wholesale|dealer|special
+  validFrom       DateTime @default(now())
+  validTo         DateTime?
+  isActive        Boolean  @default(true)
+  currencyCode    String   @default("IRR")
+  description     String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  lines           PriceListLine[]
+
+  @@unique([tenantId, listCode])
+  @@map("price_lists")
+}
+
+model PriceListLine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  priceListId     String
+  priceList       PriceList @relation(fields: [priceListId], references: [id])
+  productId       String   // FK to Product (loose — LAW-04)
+  unitPrice       Float
+  minQuantity     Float    @default(1)
+  discountPercent Float    @default(0)
+  validFrom       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([priceListId, productId, minQuantity])
+  @@index([productId])
+  @@map("price_list_lines")
+}
+
+model Quote {
+  id              String   @id @default(cuid())
+  tenantId        String
+  quoteNumber     String   // business code: QUO-1403-00001
+  customerPartyId String
+  salesRepPartyId String?
+  quoteDate       DateTime @default(now())
+  validUntil      DateTime
+  status          String   @default("draft") // draft|sent|accepted|rejected|expired|converted
+  subtotal        Float    @default(0)
+  discountAmount  Float    @default(0)
+  taxAmount       Float    @default(0)
+  totalAmount     Float    @default(0)
+  currencyCode    String   @default("IRR")
+  customerApprovedAt DateTime?
+  convertedSalesOrderId String?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  lines           QuoteLine[]
+
+  @@unique([tenantId, quoteNumber])
+  @@index([tenantId, customerPartyId])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  quoteId         String
+  quote           Quote    @relation(fields: [quoteId], references: [id])
+  lineNumber      Int
+  productId       String
+  productInstanceId String?
+  quantity        Float
+  unitPrice       Float
+  discountPercent Float    @default(0)
+  discountAmount  Float    @default(0)
+  taxPercent      Float    @default(0)
+  taxAmount       Float    @default(0)
+  lineTotal       Float
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@unique([quoteId, lineNumber])
+  @@map("quote_lines")
+}
