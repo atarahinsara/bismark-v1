@@ -275,3 +275,28 @@ Stage Summary:
 - خروجی Step 3 شامل: ۴۹ جدول (۴۳ داده + ۳ سیستمی + ۳ historical/junction extra)، ۱۶ ENUM، ۴۵+ B-tree index، ۸ Partial، ۱۱ GIN، ۳۰ UQ، ۱۲ CK، ER Diagram Mermaid
 - دو اصلاح Frozen اعمال شد: credentials بدون password_expires_at، audit_retention_configs با archive_months NULLable
 - در انتظار Sign-off کاربر روی Step 3
+
+---
+
+Task ID: 12
+Agent: Main (Software Company / Architect)
+Task: Step 3 — Part 2: Core Business Tables (Party, Product, Inventory) — ~30 tables
+
+Work Log:
+- پذیرش درخواست کاربر برای طراحی هسته اصلی ERP (Party + Product + Inventory)
+- تأیید این که این بخش با Sales/Warranty/Service/Financial ادامه پیدا می‌کند (نه جایگزین Phase 1)
+- طراحی ۳ Bounded Context جدید به‌عنوان Part 2:
+  • Party Context (Person/Organization) — ۸ جدول
+  • Product Context (Model/Product/Instance) — ۱۰ جدول
+  • Inventory Context (Warehouse/Location/Stock) — ۱۲ جدول
+- مجموع: ۳۰ جدول جدید (با ۴۹ جدول Part 1 = ۷۹ جدول کل ERP تا اینجا)
+- طراحی ENUM types جدید، DDL کامل، Indexها، Constraints، ERD Mermaid
+- رعایت تمام الگوهای قفل‌شده: UUID v7، tenant_id، audit columns، soft delete، PostgreSQL features
+- تعریف قراردادهای cross-context با Part 1 (Parties.user_id → users، Product.documents → files)
+- آماده ارائه برای تأیید کاربر
+
+Stage Summary:
+- Step 3 — Part 2: ۳۰ جدول در ۳ Bounded Context طراحی شد
+- پیوند با Part 1: parties.user_id → users، product_documents.file_id → files
+- PostgreSQL features: JSONB، GIN، Partial Index، ENUM، Generated Column، Range Partitioning (stock_transactions)
+- در انتظار تأیید کاربر برای ورود به Sales/Warranty/Service/Financial
