@@ -7,7 +7,7 @@ import {
   Plus, Edit2, Trash2, Lock, Unlock, Ban, CheckCircle, AlertCircle,
   ChevronLeft, MoreVertical, Mail, Phone, Calendar, User as UserIcon,
   Server, Database, GitBranch, Zap, Check, Filter, Download, Package,
-  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart,
+  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,8 +39,9 @@ import { InventoryLedgerView } from '@/components/views/inventory-ledger-view'
 import { TransfersView } from '@/components/views/transfers-view'
 import { CycleCountView } from '@/components/views/cycle-count-view'
 import { SalesView } from '@/components/views/sales-view'
+import { FulfillmentView } from '@/components/views/fulfillment-view'
 
-type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'branches' | 'audit' | 'settings'
+type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'branches' | 'audit' | 'settings'
 
 const userTypeLabels: Record<UserType, string> = {
   customer: 'مشتری',
@@ -210,6 +211,7 @@ const navGroups = [
     title: 'فروش',
     items: [
       { view: 'sales' as View, label: 'سفارشات فروش', icon: ShoppingCart },
+      { view: 'fulfillment' as View, label: 'fulfillment', icon: Truck },
     ],
   },
   {
@@ -1364,6 +1366,7 @@ export default function Page() {
     transfers: 'انتقالات موجودی',
     'cycle-counts': 'شمارش موجودی',
     sales: 'سفارشات فروش',
+    fulfillment: 'fulfillment',
     branches: 'شعب',
     audit: 'لاگ ممیزی',
     settings: 'تنظیمات',
@@ -1392,6 +1395,7 @@ export default function Page() {
           {view === 'transfers' && <TransfersView />}
           {view === 'cycle-counts' && <CycleCountView />}
           {view === 'sales' && <SalesView />}
+          {view === 'fulfillment' && <FulfillmentView />}
           {view === 'branches' && <BranchesView />}
           {view === 'audit' && <AuditView />}
           {view === 'settings' && <SettingsView />}

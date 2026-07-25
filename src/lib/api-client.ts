@@ -608,3 +608,76 @@ export const salesOrdersApi = {
       headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
     }),
 }
+
+// ============================================================
+// Shipments / Fulfillment (Sprint 3.2 — LAW-16/17/18)
+// ============================================================
+
+export interface Shipment {
+  id: string
+  shipmentNumber: string
+  salesOrderId: string | null
+  customerPartyId: string
+  fromWarehouseId: string
+  toPartyId: string
+  status: string // draft|picking|packing|shipped|delivered|returned|cancelled
+  shipmentDate: string
+  expectedArrival: string | null
+  shippedAt: string | null
+  deliveredAt: string | null
+  shippingMethod: string | null
+  trackingNumber: string | null
+  shippingCost: number
+  version: number
+  lineCount: number
+  lines?: ShipmentLine[]
+}
+
+export interface ShipmentLine {
+  id: string
+  lineNumber: number
+  productId: string
+  productInstanceId: string | null
+  quantity: number
+  quantityPicked: number
+  quantityPacked: number
+  quantityShipped: number
+  quantityDelivered: number
+}
+
+export const shipmentsApi = {
+  list: (page = 1, perPage = 20, filters: { status?: string; salesOrderId?: string } = {}) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (filters.status) params.set('status', filters.status)
+    if (filters.salesOrderId) params.set('sales_order_id', filters.salesOrderId)
+    return request<PaginatedResponse<Shipment>>(`/shipments?${params}`)
+  },
+  get: (id: string) => request<{ data: Shipment, lines: ShipmentLine[] }>(`/shipments/${id}`),
+  create: (data: { salesOrderId: string; fromWarehouseId: string; shippingMethod?: string; expectedArrival?: string; notes?: string }, idempotencyKey?: string) =>
+    request<{ data: Shipment }>(`/shipments`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  pick: (id: string, data: { pickedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string } }>(`/shipments/${id}/pick`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  pack: (id: string, data: { packedBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string } }>(`/shipments/${id}/pack`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  ship: (id: string, data: { shippedBy?: string; trackingNumber?: string; shippingMethod?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; shipmentNumber: string; status: string; ledgerEntriesCreated: number; message: string } }>(`/shipments/${id}/ship`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  deliver: (id: string, data: { deliveredBy?: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string } }>(`/shipments/${id}/deliver`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  tracking: (id: string) =>
+    request<{ data: { shipmentNumber: string; status: string; trackingNumber: string | null; timeline: Array<{ event: string; timestamp: string; label: string }> } }>(`/shipments/${id}/tracking`),
+}

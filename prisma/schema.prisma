@@ -896,3 +896,116 @@ model QuoteLine {
   @@unique([quoteId, lineNumber])
   @@map("quote_lines")
 }
+
+// ============================================================
+// SPRINT 3.2 — FULFILLMENT (Shipment, Pick, Pack, Delivery, Tracking)
+// ============================================================
+// LAW-16: No Physical Movement Without Ledger Event
+// LAW-17: Reservation Before Shipment
+// LAW-18: Shipment Immutable After Shipping
+// ============================================================
+
+model Shipment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  shipmentNumber  String   // business code: SHP-1403-00001
+  salesOrderId    String?  // FK to SalesOrder (same context)
+  customerPartyId String   // FK to Party (loose, cross-context — LAW-04)
+  fromWarehouseId String
+  toPartyId       String   // customer
+  status          String   @default("draft") // draft|picking|packing|shipped|delivered|returned|cancelled
+  shipmentDate    DateTime @default(now())
+  expectedArrival DateTime?
+  actualArrival   DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  shippingMethod  String?  // in_house|courier|post
+  transporterPartyId String?
+  trackingNumber  String?
+  shippingCost    Float    @default(0)
+  currencyCode    String   @default("IRR")
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  lines           ShipmentLine[]
+  pickList        PickList?
+
+  @@unique([tenantId, shipmentNumber])
+  @@index([salesOrderId])
+  @@index([tenantId, status])
+  @@map("shipments")
+}
+
+model ShipmentLine {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  shipmentId          String
+  shipment            Shipment @relation(fields: [shipmentId], references: [id])
+  salesOrderLineId    String?
+  lineNumber          Int
+  productId           String
+  productInstanceId   String?
+  quantity            Float
+  quantityPicked      Float    @default(0)
+  quantityPacked      Float    @default(0)
+  quantityShipped     Float    @default(0)
+  quantityDelivered   Float    @default(0)
+  quantityReturned    Float    @default(0)
+  fromLocationId      String?
+  toLocationId        String?
+  batchNumber         String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([shipmentId, lineNumber])
+  @@index([productId])
+  @@map("shipment_lines")
+}
+
+model PickList {
+  id              String   @id @default(cuid())
+  tenantId        String
+  pickListNumber  String   // business code: PL-1403-00001
+  shipmentId      String   @unique
+  shipment        Shipment @relation(fields: [shipmentId], references: [id])
+  warehouseId     String
+  status          String   @default("pending") // pending|in_progress|completed|cancelled
+  assignedTo      String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  notes           String?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  lines           PickListLine[]
+
+  @@unique([tenantId, pickListNumber])
+  @@map("pick_lists")
+}
+
+model PickListLine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  pickListId      String
+  pickList        PickList @relation(fields: [pickListId], references: [id])
+  shipmentLineId  String
+  productId       String
+  productInstanceId String?
+  locationId      String?
+  quantityToPick  Float
+  quantityPicked  Float    @default(0)
+  isPicked        Boolean  @default(false)
+  pickedAt        DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([pickListId, shipmentLineId])
+  @@map("pick_list_lines")
+}

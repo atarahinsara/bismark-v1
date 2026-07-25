@@ -802,3 +802,33 @@ Stage Summary:
 - LAW-13/14/15 اضافه شدند (ADR-028, ADR-029, ADR-030)
 - Sprint 3.1: در حال اجرا
 - Total Architecture Laws: ۱۵
+
+---
+
+Task ID: 28
+Agent: Main (Software Company / Architect)
+Task: LAW-16/17/18 + Sprint 3.2 (Fulfillment — Shipment, Pick, Pack, Delivery, Tracking)
+
+Work Log:
+- پذیرش 3 قانون جدید:
+  • LAW-16: No Physical Movement Without Ledger Event
+  • LAW-17: Reservation Before Shipment
+  • LAW-18: Shipment Immutable After Shipping
+- تأیید DoD Sprint 3.2 (Integration Test مسیر کامل: Order → Reserve → Pick → Pack → Ship → Ledger → Outbox → Delivery → Tracking)
+- ایجاد LAW-16/17/18 در Shared Kernel
+- Prisma models: Shipment, ShipmentLine, PickList, PickListLine
+- API routes:
+  • POST /shipments (create from sales order)
+  • POST /shipments/{id}/pick (pick items — requires reservation)
+  • POST /shipments/{id}/pack (pack picked items)
+  • POST /shipments/{id}/ship (ship — creates OUT ledger entries, LAW-16)
+  • POST /shipments/{id}/deliver (delivery confirmation)
+  • GET /shipments/{id}/tracking (tracking info)
+- اعمال تمام 18 قانون در Fulfillment module
+- Integration Test مسیر کامل
+- UI: Fulfillment view با shipment list + detail + workflow
+
+Stage Summary:
+- LAW-16/17/18 اضافه شدند (ADR-031, ADR-032, ADR-033)
+- Sprint 3.2: در حال اجرا
+- Total Architecture Laws: ۱۸
