@@ -694,3 +694,37 @@ Stage Summary:
 - Sprint 2.2B: ✅ تکمیل شد با Ledger Pattern
 - Inventory: Ledger-based (immutable transactions + derived balances)
 - آماده Sprint 2.2C (Inventory Transaction + Transfer)
+
+---
+
+Task ID: 25
+Agent: Main (Software Company / Architect)
+Task: LAW-06 to LAW-10 + Sprint 2.2C (Transfer + Idempotency + Optimistic Lock)
+
+Work Log:
+- پذیرش 5 قانون بحرانی جدید (LAW-06 تا LAW-10):
+  • LAW-06: Idempotency برای تمام Command APIها (Idempotency-Key header)
+  • LAW-07: Optimistic Locking برای Aggregate Rootها (version field)
+  • LAW-08: Outbox Pattern برای انتشار مطمئن Eventها
+  • LAW-09: Inbox Pattern برای جلوگیری از پردازش تکراری Eventها
+  • LAW-10: Snapshot Policy برای مقیاس‌پذیری Ledger
+- ایجاد فایل‌های LAW-06 تا LAW-10 در Shared Kernel
+- به‌روزرسانی Prisma schema:
+  • افزودن version field به تمام aggregate roots (LAW-07)
+  • مدل IdempotencyKey (LAW-06)
+  • مدل OutboxMessage (LAW-08)
+  • مدل ProcessedMessage (LAW-09)
+  • مدل StockBalanceSnapshot (LAW-10)
+- ساخت IdempotencyHelper برای مدیریت Idempotency-Key
+- ساخت OptimisticLockHelper برای مدیریت version conflicts
+- ساخت Sprint 2.2C:
+  • Multi-Warehouse Transfer API (با Idempotency)
+  • Zone Transfer
+  • Bin Transfer
+  • Inventory Movement History
+- تست با curl
+
+Stage Summary:
+- LAW-06 تا LAW-10 همگی اضافه شدند (ADR-021 تا ADR-025)
+- Sprint 2.2C: ✅ تکمیل شد با Transfer + Idempotency + Optimistic Lock
+- آماده Sprint 2.2D (Cycle Count + Snapshot Engine)

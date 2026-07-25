@@ -356,3 +356,97 @@ export const stockReservationsApi = {
   release: (id: string) =>
     request<{ data: { id: string; status: string } }>(`/stock-reservations/${id}/release`, { method: 'POST', body: '{}' }),
 }
+
+// ============================================================
+// Stock Transfers (Sprint 2.2C — Idempotent + Optimistic Lock)
+// ============================================================
+
+export interface StockTransfer {
+  id: string
+  transferNumber: string
+  transferType: string // warehouse|zone|bin
+  fromWarehouseId: string
+  toWarehouseId: string | null
+  fromLocationId: string | null
+  toLocationId: string | null
+  status: string // draft|in_transit|received|partial|cancelled
+  transferDate: string
+  expectedArrival: string | null
+  actualArrival: string | null
+  notes: string | null
+  version: number
+  lineCount: number
+  lines?: StockTransferLine[]
+}
+
+export interface StockTransferLine {
+  id: string
+  stockItemId: string
+  productId: string
+  quantity: number
+  quantityReceived: number
+  unitCost: number | null
+}
+
+export const stockTransfersApi = {
+  list: (page = 1, perPage = 20, filters: { status?: string; transferType?: string } = {}) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (filters.status) params.set('status', filters.status)
+    if (filters.transferType) params.set('transfer_type', filters.transferType)
+    return request<PaginatedResponse<StockTransfer>>(`/stock-transfers?${params}`)
+  },
+  get: (id: string) => request<{ data: StockTransfer }>(`/stock-transfers/${id}`),
+  create: (data: Partial<StockTransfer>, idempotencyKey?: string) =>
+    request<{ data: StockTransfer }>(`/stock-transfers`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  addLine: (transferId: string, data: Partial<StockTransferLine>) =>
+    request<{ data: StockTransferLine }>(`/stock-transfers/${transferId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  ship: (id: string, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string; ledgerEntriesCreated: number } }>(`/stock-transfers/${id}/ship`, {
+      method: 'POST',
+      body: '{}',
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  receive: (id: string, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string; ledgerEntriesCreated: number } }>(`/stock-transfers/${id}/receive`, {
+      method: 'POST',
+      body: '{}',
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+}
+
+// ============================================================
+// Movement History (Sprint 2.2C)
+// ============================================================
+
+export interface Movement {
+  id: string
+  movementNumber: string
+  movementType: string
+  productId: string
+  productInstanceId: string | null
+  fromWarehouseId: string | null
+  toWarehouseId: string | null
+  quantity: number
+  unitCost: number | null
+  reason: string | null
+  referenceType: string | null
+  referenceId: string | null
+  occurredAt: string
+}
+
+export const movementsApi = {
+  list: (page = 1, perPage = 20, filters: { productId?: string; warehouseId?: string; transactionType?: string } = {}) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (filters.productId) params.set('product_id', filters.productId)
+    if (filters.warehouseId) params.set('warehouse_id', filters.warehouseId)
+    if (filters.transactionType) params.set('transaction_type', filters.transactionType)
+    return request<PaginatedResponse<Movement>>(`/movements?${params}`)
+  },
+}

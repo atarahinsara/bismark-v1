@@ -40,6 +40,8 @@ export * from './helpers/business-code-generator'
 
 // Infrastructure
 export * from './infra/prisma-event-bus'
+export * from './infra/idempotency-helper'
+export * from './infra/optimistic-lock-helper'
 
 // Domain Services (shared business logic)
 export * from './domain-services'
@@ -50,3 +52,8 @@ export * from './repositories'
 // Architecture Laws
 export * from './laws/law-04'
 export * from './laws/law-05'
+export * from './laws/law-06'
+export * from './laws/law-07'
+export * from './laws/law-08'
+export * from './laws/law-09'
+export * from './laws/law-10'

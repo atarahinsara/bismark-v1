@@ -13,6 +13,80 @@ datasource db {
 }
 
 // ============================================================
+// INFRASTRUCTURE TABLES (LAW-06 to LAW-10)
+// ============================================================
+
+// LAW-06: Idempotency Keys
+model IdempotencyKey {
+  id              String   @id @default(cuid())
+  tenantId        String
+  key             String   // the Idempotency-Key header value (UUID)
+  endpoint        String   // e.g., "POST /api/v1/inventory-transactions"
+  requestHash     String   // SHA-256 of request body
+  responseBody    String   // cached response (JSON)
+  responseStatus  Int      // cached HTTP status
+  responseHeaders Json?    // cached headers
+  expiresAt       DateTime // 24h after creation
+  createdAt       DateTime @default(now())
+
+  @@unique([tenantId, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+// LAW-08: Outbox Messages (reliable event publishing)
+model OutboxMessage {
+  id              String   @id @default(cuid())
+  tenantId        String
+  aggregateType   String
+  aggregateId     String
+  eventType       String
+  eventVersion    String   @default("1.0")
+  payload         Json
+  actorId         String?
+  occurredAt      DateTime @default(now())
+  publishedAt     DateTime?
+  attempts        Int      @default(0)
+  nextRetryAt     DateTime?
+  status          String   @default("pending") // pending|published|failed|dead_letter
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+
+  @@index([status, nextRetryAt])
+  @@index([tenantId, occurredAt])
+  @@map("outbox_messages")
+}
+
+// LAW-09: Processed Messages (consumer-side deduplication)
+model ProcessedMessage {
+  id              String   @id @default(cuid())
+  tenantId        String
+  messageId       String   // the event ID from Outbox
+  consumerId      String   // identifies which consumer processed it
+  payloadHash     String?
+  processedAt     DateTime @default(now())
+
+  @@unique([messageId, consumerId])
+  @@index([tenantId, processedAt])
+  @@map("processed_messages")
+}
+
+// LAW-10: Stock Balance Snapshots (ledger scalability)
+model StockBalanceSnapshot {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  stockItemId         String
+  onHandQuantity      Float
+  reservedQuantity    Float
+  lastTransactionId   String?
+  snapshotAt          DateTime @default(now())
+  snapshotType        String   // nightly|threshold|manual
+
+  @@index([stockItemId, snapshotAt])
+  @@map("stock_balance_snapshots")
+}
+
+// ============================================================
 // SYSTEM TABLES
 // ============================================================
 
@@ -333,6 +407,7 @@ model Warehouse {
   isDefault       Boolean  @default(false)
   capacityCubic   Float?
   metadata        Json?
+  version         Int      @default(1) // LAW-07: Optimistic Locking
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   deletedAt       DateTime?
@@ -438,6 +513,7 @@ model StockItem {
   expiryDate          DateTime?
   lastTransactionAt   DateTime?
   metadata            Json?
+  version             Int      @default(1) // LAW-07: Optimistic Locking
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   deletedAt           DateTime?
@@ -524,6 +600,7 @@ model StockReservation {
   consumedAt          DateTime?
   status              String   @default("active") // active|released|consumed|expired
   metadata            Json?
+  version             Int      @default(1) // LAW-07
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -532,4 +609,63 @@ model StockReservation {
   @@index([referenceType, referenceId])
   @@index([status, expiresAt])
   @@map("stock_reservations")
+}
+
+// ============================================================
+// SPRINT 2.2C — Stock Transfers (Multi-Warehouse, Zone, Bin)
+// ============================================================
+
+model StockTransfer {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  transferNumber      String   // business code: TR-1403-00001
+  transferType        String   // warehouse|zone|bin
+  fromWarehouseId     String
+  toWarehouseId       String?
+  fromLocationId      String?
+  toLocationId        String?
+  fromBinId           String?
+  toBinId             String?
+  status              String   @default("draft") // draft|in_transit|received|partial|cancelled
+  transferDate        DateTime @default(now())
+  expectedArrival     DateTime?
+  actualArrival       DateTime?
+  shippedBy           String?
+  receivedBy          String?
+  transporterPartyId  String?
+  notes               String?
+  metadata            Json?
+  version             Int      @default(1) // LAW-07
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  lines               StockTransferLine[]
+
+  @@unique([tenantId, transferNumber])
+  @@index([fromWarehouseId, status])
+  @@index([toWarehouseId, status])
+  @@map("stock_transfers")
+}
+
+model StockTransferLine {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  transferId          String
+  transfer            StockTransfer @relation(fields: [transferId], references: [id])
+  stockItemId         String
+  productId           String
+  productInstanceId   String?
+  batchNumber         String?
+  quantity            Float
+  quantityReceived    Float    @default(0)
+  unitCost            Float?
+  fromLocationId      String?
+  toLocationId        String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([transferId])
+  @@map("stock_transfer_lines")
 }
