@@ -360,3 +360,81 @@ Stage Summary:
 - ~600+ endpoints در 13 Bounded Context
 - Webhook event catalog + OpenAPI 3.1 structure
 - در انتظار تأیید کاربر برای Lock نهایی Step 4
+
+---
+
+Task ID: 15
+Agent: Main (Software Company / Architect)
+Task: Apply 4 additions + LAW-03 to Step 4, Lock, then Step 5 (UI/UX Design)
+
+Work Log:
+- پذیرش چهار اصلاح کاربر روی Step 4:
+  • CorrelationId اجباری در تمام Error Responseها
+  • Idempotency-Key برای Webhook
+  • Event Version در Webhook envelope
+  • LAW-03: هیچ Endpoint نباید مستقیماً Repository یا Database Context دیگر را بخواند
+- اعمال delta بر Step 4 (compact)
+- Step 4: ✅ Locked
+- ثبت LAW-03 در ADRها (ADR-018)
+- شروع Step 5 — UI/UX Design برای تمام ماژول‌ها (Web + Mobile)
+- طراحی Design Tokens، Navigation، Wireframes، User Flows، Component Inventory، Role Matrix، Responsive
+- اعمال تمام قوانین: LAW-01/02/03 + Law of UI (no indigo/blue)
+- آماده ارائه Step 5 برای Auto-Lock
+
+Stage Summary:
+- Step 4: ✅ Locked (با 4 اصلاح + LAW-03)
+- LAW-03 قفل شد: No cross-context repository access from endpoints
+- Step 5: خروجی کامل تولید شد
+- 2 پلتفرم: Web (Next.js/shadcn) + Mobile (Flutter/Material)
+- در انتظار Auto-Lock Step 5 با DoD
+
+---
+
+Task ID: 16
+Agent: Main (Software Company / Architect)
+Task: Step 6 — Development (Laravel Implementation Spec for 127 tables + 600+ endpoints)
+
+Work Log:
+- شروع Step 6 (Development) طبق دستور کاربر
+- ثبت Critical Note: محیط ایجنت Next.js، Laravel قابل اجرا نیست → تولید spec پیاده‌سازی Laravel (گزینه ۱، همخوان با Design-Only)
+- طراحی ساختار پروژه Laravel 12 Modular Monolith برای ۱۳ Bounded Context
+- طراحی module skeletons (Controllers, Services, Repositories, Contracts, DTOs, Events, Listeners)
+- طراحی migration files برای تمام ۱۲۷ جدول (با PostgreSQL features)
+- طراحی Middleware stack (auth, tenant, rbac, feature flag, audit, rate limit, LAW-01/03 enforcement)
+- طراحی Service Layer + Contracts برای تمام Contextها (LAW-01/03 compliance)
+- طراحی Event Bus + Outbox Pattern implementation
+- طراحی seeders (tenant, roles, permissions, settings, feature flags, business codes)
+- طراحی OpenAPI spec generation (swagger-php attributes)
+- اعمال DoD بر Step 6 → Auto-Lock شد
+- ورود مستقیم به Step 7 (Review)
+
+Stage Summary:
+- Step 6: ✅ Auto-Locked (در حالت spec)
+- خروجی: Laravel project structure + 13 module skeletons + 127 migration files + middleware + key classes
+- اجرای واقعی: نیاز به محیط Laravel (تیم توسعه پیاده‌سازی می‌کند)
+- Reference impl در Next.js: در Backlog (BL-009)
+- آماده Step 7 (Review)
+
+---
+
+Task ID: 17
+Agent: Main (Software Company / Architect)
+Task: Step 7 — Review + Auto-Lock + Step 8 Acceptance
+
+Work Log:
+- Code Review: بررسی الگوهای معماری (Service Layer، Contracts، Outbox، LAW-01/02/03)
+- Security Review: OWASP Top 10، Auth، RBAC، injection، i18n security
+- Performance Review: queries، indexes، N+1 prevention، caching، partitioning
+- شناسایی و رفع ۳ Critical issue در spec
+- ثبت Important issues در Backlog
+- اعمال DoD بر Step 7 → Auto-Lock شد
+- ورود به Step 8 (Acceptance)
+- تولید Deliverable Package نهایی + Risk Register + Sign-off
+
+Stage Summary:
+- Step 7: ✅ Auto-Locked (DoD پاس شد پس از رفع ۳ Critical)
+- Step 8: ✅ Auto-Locked (Deliverable Package کامل)
+- 3 Critical issues رفع شد: LAW-03 static analyzer، Webhook signature validation، Partition maintenance job
+- Phase 1 (ERP Core) + Parts 2+3 (Business) Design کامل شد
+- 8 Step همگی Locked شدند
+- آماده Sign-off نهایی کاربر
