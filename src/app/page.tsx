@@ -7,7 +7,7 @@ import {
   Plus, Edit2, Trash2, Lock, Unlock, Ban, CheckCircle, AlertCircle,
   ChevronLeft, MoreVertical, Mail, Phone, Calendar, User as UserIcon,
   Server, Database, GitBranch, Zap, Check, Filter, Download, Package,
-  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck, Receipt, Undo2,
+  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck, Receipt, Undo2, Activity,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,8 +42,9 @@ import { SalesView } from '@/components/views/sales-view'
 import { FulfillmentView } from '@/components/views/fulfillment-view'
 import { BillingView } from '@/components/views/billing-view'
 import { ReturnsView } from '@/components/views/returns-view'
+import { IntegrationView } from '@/components/views/integration-view'
 
-type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'branches' | 'audit' | 'settings'
+type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'integration' | 'branches' | 'audit' | 'settings'
 
 const userTypeLabels: Record<UserType, string> = {
   customer: 'مشتری',
@@ -233,6 +234,7 @@ const navGroups = [
   {
     title: 'سیستم',
     items: [
+      { view: 'integration' as View, label: 'داشبورد یکپارچگی', icon: Activity },
       { view: 'audit' as View, label: 'لاگ ممیزی', icon: FileText },
       { view: 'settings' as View, label: 'تنظیمات', icon: Settings },
     ],
@@ -1373,6 +1375,7 @@ export default function Page() {
     fulfillment: 'fulfillment',
     billing: 'صورتحساب',
     returns: 'مرجوعی و بازپرداخت',
+    integration: 'داشبورد یکپارچگی',
     branches: 'شعب',
     audit: 'لاگ ممیزی',
     settings: 'تنظیمات',
@@ -1404,6 +1407,7 @@ export default function Page() {
           {view === 'fulfillment' && <FulfillmentView />}
           {view === 'billing' && <BillingView />}
           {view === 'returns' && <ReturnsView />}
+          {view === 'integration' && <IntegrationView />}
           {view === 'branches' && <BranchesView />}
           {view === 'audit' && <AuditView />}
           {view === 'settings' && <SettingsView />}

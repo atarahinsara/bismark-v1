@@ -1271,3 +1271,47 @@ model Refund {
   @@index([tenantId, customerPartyId])
   @@map("refunds")
 }
+
+// ============================================================
+// SPRINT 3.5 — INTEGRATION (Saga, Inbox, Event Catalog)
+// ============================================================
+// LAW-25: No Cross-Context Synchronous Commands
+// LAW-26: Every Domain Event Must Be Processed Exactly Once
+// LAW-27: Every Long-Running Business Process Must Be a Saga
+// ============================================================
+
+model SagaDefinition {
+  id              String   @id @default(cuid())
+  tenantId        String
+  key             String   // e.g., 'sales_order_fulfillment'
+  name            String
+  description     String?
+  steps           Json     // [{ step: 1, name: 'reserve_inventory', event: 'sales_order.approved', compensation: 'release_reservation' }]
+  isActive        Boolean  @default(true)
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, key])
+  @@map("saga_definitions")
+}
+
+model SagaInstance {
+  id              String   @id @default(cuid())
+  tenantId        String
+  sagaDefinitionKey String
+  correlationId   String   // links to the business entity (e.g., sales order ID)
+  status          String   @default("pending") // pending|running|completed|failed|compensating|compensated
+  currentStep     Int      @default(0)
+  totalSteps      Int      @default(0)
+  payload         Json     // saga context data
+  errorMessage     String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@index([correlationId])
+  @@map("saga_instances")
+}

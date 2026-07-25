@@ -859,3 +859,51 @@ Stage Summary:
 - LAW-19/20/21 اضافه شدند (ADR-034, ADR-035, ADR-036)
 - Sprint 3.3: در حال اجرا
 - Total Architecture Laws: ۲۱
+
+---
+
+Task ID: 30
+Agent: Main (Software Company / Architect)
+Task: LAW-25/26/27 + Sprint 3.5 (Integration — Inbox, Saga, Event Catalog, Dashboard)
+
+Work Log:
+- پذیرش 3 قانون نهایی معماری:
+  • LAW-25: No Cross-Context Synchronous Commands
+  • LAW-26: Every Domain Event Must Be Processed Exactly Once
+  • LAW-27: Every Long-Running Business Process Must Be a Saga
+- ایجاد LAW-25/26/27 در Shared Kernel
+- Prisma models: SagaDefinition, SagaInstance
+- Inbox Worker (operational — LAW-09/26):
+  • Polls published Outbox messages
+  • Exactly-once processing via processed_messages table
+  • Per-consumer deduplication (consumerId)
+  • Retry + DLQ integration
+- Event Handlers (cross-context consumers — LAW-25):
+  • inventory-reservation-handler (sales_order.approved → reserve)
+  • inventory-cancel-handler (sales_order.cancelled → release)
+  • billing-invoice-handler (shipment.shipped → auto-invoice)
+  • financial-ar-handler (invoice.issued → JE for Financial)
+  • financial-cash-handler (payment.received → JE for Financial)
+  • financial-reversal-handler (credit_note.issued → reversal JE)
+  • financial-refund-handler (refund.completed → refund JE)
+  • saga handlers (return_order.received/closed, refund.completed)
+  • audit-wildcard-handler (all events)
+- Saga Manager (LAW-27):
+  • SAGA_DEFINITIONS: sales_order_fulfillment (5 steps), return_processing (4 steps)
+  • startSaga, advanceStep, failSaga (with compensation), getStatus, listActive
+  • Compensation in reverse order
+- Event Catalog: 22 events with publisher, consumers, version, retryPolicy
+- Integration Dashboard API: outbox/inbox/saga/DLQ/event-catalog stats
+- Integration Dashboard UI: 4 stat cards + outbox/inbox/saga/DLQ panels + event catalog table
+- تست با curl: 22 events, 0 outbox (fresh), 0 DLQ, API 200 ✅
+- Lint: 0 خطا ✅
+
+Stage Summary:
+- LAW-25/26/27 اضافه شدند (ADR-040, ADR-041, ADR-042)
+- Sprint 3.5: ✅ Complete
+- Inbox: ✅ Operational (exactly-once via processed_messages)
+- Saga Manager: ✅ Operational (2 saga definitions with compensation)
+- Event Catalog: ✅ 22 events registered
+- Integration Dashboard: ✅ UI + API
+- Total Architecture Laws: ۲۷ (نهایی)
+- Sprint 3 (Sales) کامل: 3.1 + 3.2 + 3.3 + 3.4 + 3.5
