@@ -1199,3 +1199,35 @@ Stage Summary:
 - Total Prisma Models: 67+
 - Total API Routes: 92+
 - آماده Sprint 6.5 (Financial Statements)
+
+---
+
+Task ID: 39
+Agent: Main (Software Company / Architect)
+Task: LAW-46/47/48 + Sprint 6.5 (Financial Statements)
+
+Work Log:
+- پذیرش 3 قانون نالی Reporting:
+  • LAW-46: Financial Statements Are Derived From Posted Journal Entries Only
+  • LAW-47: Financial Reports Must Be Reproducible For Any Historical Date
+  • LAW-48: Reporting Never Mutates Accounting Data
+- API routes (6 endpoints — all GET, all read-only — LAW-48):
+  • GET /reports/balance-sheet (Assets, Liabilities, Equity, diff=0 ✅)
+  • GET /reports/profit-loss (Revenue, COGS, Gross Profit, OpEx, Operating Profit, Tax, Net Profit)
+  • GET /reports/cash-flow (Operating, Investing, Financing, Net Change)
+  • GET /reports/equity (Opening, Profit, Contributions, Withdrawals, Closing)
+  • GET /reports/final-trial-balance (Opening, Movements, Closing per account, diff=0 ✅)
+  • GET /reports/dashboard (KPIs: Revenue, Expense, Profit, Cash, AR, AP, Inventory, Margins, Ratios + Monthly trends)
+- All reports: LAW-46 (posted JEs only), LAW-47 (reproducible by date), LAW-48 (read-only)
+- Balance Sheet: difference = 0 ✅
+- Final Trial Balance: closingDifference = 0, isBalanced = true ✅
+- Tests: 68/68 passing
+- Lint: 0 errors
+
+Stage Summary:
+- LAW-46/47/48 اضافه شدند (ADR-061, ADR-062, ADR-063)
+- Sprint 6.5: ✅ Complete (Financial Statements)
+- Total Architecture Laws: ۴۸ (نهایی)
+- Financial Context کامل: Accounting Foundation + GL + Closing + AR/AP + Tax + Statements
+- Sprint 6 (Financial) کامل: 6.1 + 6.2 + 6.3 + 6.4 + 6.5
+- آماده Sprint 7 (Workflow + Rules + Notification)
