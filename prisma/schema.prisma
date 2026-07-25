@@ -20,12 +20,12 @@ datasource db {
 model IdempotencyKey {
   id              String   @id @default(cuid())
   tenantId        String
-  key             String   // the Idempotency-Key header value (UUID)
-  endpoint        String   // e.g., "POST /api/v1/inventory-transactions"
-  requestHash     String   // SHA-256 of request body
-  responseBody    String   // cached response (JSON)
-  responseStatus  Int      // cached HTTP status
-  responseHeaders Json?    // cached headers
+  key             String // the Idempotency-Key header value (UUID)
+  endpoint        String // e.g., "POST /api/v1/inventory-transactions"
+  requestHash     String // SHA-256 of request body
+  responseBody    String // cached response (JSON)
+  responseStatus  Int // cached HTTP status
+  responseHeaders Json? // cached headers
   expiresAt       DateTime // 24h after creation
   createdAt       DateTime @default(now())
 
@@ -36,21 +36,21 @@ model IdempotencyKey {
 
 // LAW-08: Outbox Messages (reliable event publishing)
 model OutboxMessage {
-  id              String   @id @default(cuid())
-  tenantId        String
-  aggregateType   String
-  aggregateId     String
-  eventType       String
-  eventVersion    String   @default("1.0")
-  payload         Json
-  actorId         String?
-  occurredAt      DateTime @default(now())
-  publishedAt     DateTime?
-  attempts        Int      @default(0)
-  nextRetryAt     DateTime?
-  status          String   @default("pending") // pending|published|failed|dead_letter
-  errorMessage    String?
-  createdAt       DateTime @default(now())
+  id            String    @id @default(cuid())
+  tenantId      String
+  aggregateType String
+  aggregateId   String
+  eventType     String
+  eventVersion  String    @default("1.0")
+  payload       Json
+  actorId       String?
+  occurredAt    DateTime  @default(now())
+  publishedAt   DateTime?
+  attempts      Int       @default(0)
+  nextRetryAt   DateTime?
+  status        String    @default("pending") // pending|published|failed|dead_letter
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
 
   @@index([status, nextRetryAt])
   @@index([tenantId, occurredAt])
@@ -59,12 +59,12 @@ model OutboxMessage {
 
 // LAW-09: Processed Messages (consumer-side deduplication)
 model ProcessedMessage {
-  id              String   @id @default(cuid())
-  tenantId        String
-  messageId       String   // the event ID from Outbox
-  consumerId      String   // identifies which consumer processed it
-  payloadHash     String?
-  processedAt     DateTime @default(now())
+  id          String   @id @default(cuid())
+  tenantId    String
+  messageId   String // the event ID from Outbox
+  consumerId  String // identifies which consumer processed it
+  payloadHash String?
+  processedAt DateTime @default(now())
 
   @@unique([messageId, consumerId])
   @@index([tenantId, processedAt])
@@ -73,14 +73,14 @@ model ProcessedMessage {
 
 // LAW-10: Stock Balance Snapshots (ledger scalability)
 model StockBalanceSnapshot {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  stockItemId         String
-  onHandQuantity      Float
-  reservedQuantity    Float
-  lastTransactionId   String?
-  snapshotAt          DateTime @default(now())
-  snapshotType        String   // nightly|threshold|manual
+  id                String   @id @default(cuid())
+  tenantId          String
+  stockItemId       String
+  onHandQuantity    Float
+  reservedQuantity  Float
+  lastTransactionId String?
+  snapshotAt        DateTime @default(now())
+  snapshotType      String // nightly|threshold|manual
 
   @@index([stockItemId, snapshotAt])
   @@map("stock_balance_snapshots")
@@ -91,20 +91,20 @@ model StockBalanceSnapshot {
 // ============================================================
 
 model Tenant {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String
-  slug          String   @unique
-  defaultLocale String   @default("fa-IR")
-  defaultTz     String   @default("Asia/Tehran")
-  isActive      Boolean  @default(true)
+  slug          String    @unique
+  defaultLocale String    @default("fa-IR")
+  defaultTz     String    @default("Asia/Tehran")
+  isActive      Boolean   @default(true)
   metadata      Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  users         User[]
-  parties       Party[]
-  branches      Branch[]
+  users             User[]
+  parties           Party[]
+  branches          Branch[]
   productCategories ProductCategory[]
   productBrands     ProductBrand[]
   productModels     ProductModel[]
@@ -117,25 +117,25 @@ model Tenant {
 // ============================================================
 
 model User {
-  id              String   @id @default(cuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  username        String
-  displayName     String
-  email           String?
-  phone           String?
-  userType        String   @default("staff") // customer|representative|technician|service_center|staff
-  status          String   @default("active") // active|suspended|locked|deleted
-  locale          String   @default("fa-IR")
-  isActive        Boolean  @default(true)
-  lockedUntil     DateTime?
-  lastLoginAt     DateTime?
-  metadata        Json
-  createdBy       String?
-  updatedBy       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  username    String
+  displayName String
+  email       String?
+  phone       String?
+  userType    String    @default("staff") // customer|representative|technician|service_center|staff
+  status      String    @default("active") // active|suspended|locked|deleted
+  locale      String    @default("fa-IR")
+  isActive    Boolean   @default(true)
+  lockedUntil DateTime?
+  lastLoginAt DateTime?
+  metadata    Json
+  createdBy   String?
+  updatedBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
   @@unique([tenantId, username])
   @@index([tenantId, status])
@@ -143,14 +143,14 @@ model User {
 }
 
 model Role {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
   key         String
   name        String
   description String?
-  isSystem    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isSystem    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   @@unique([tenantId, key])
@@ -170,20 +170,20 @@ model Permission {
 }
 
 model Session {
-  id              String   @id @default(cuid())
-  userId          String
-  tenantId        String
-  status          String   @default("active") // active|expired|revoked
-  ipAddress       String
-  userAgent       String?
+  id                String    @id @default(cuid())
+  userId            String
+  tenantId          String
+  status            String    @default("active") // active|expired|revoked
+  ipAddress         String
+  userAgent         String?
   deviceFingerprint String?
-  issuedAt        DateTime @default(now())
-  lastActivityAt  DateTime @default(now())
-  expiresAt       DateTime
+  issuedAt          DateTime  @default(now())
+  lastActivityAt    DateTime  @default(now())
+  expiresAt         DateTime
   absoluteExpiresAt DateTime
-  revokedAt       DateTime?
-  revokedReason   String?
-  metadata        Json
+  revokedAt         DateTime?
+  revokedReason     String?
+  metadata          Json
 
   @@index([userId, status])
   @@map("sessions")
@@ -194,18 +194,18 @@ model Session {
 // ============================================================
 
 model Branch {
-  id            String   @id @default(cuid())
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  name          String
-  code          String
-  parentId      String?
-  address       Json?
-  contactPhone  String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  name         String
+  code         String
+  parentId     String?
+  address      Json?
+  contactPhone String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
   @@unique([tenantId, code])
   @@map("branches")
@@ -216,19 +216,19 @@ model Branch {
 // ============================================================
 
 model Party {
-  id              String   @id @default(cuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  businessCode    String   // LAW-02: PRT-1403-00001
-  partyType       String   // person|organization
-  displayName     String
-  status          String   @default("active") // active|inactive|suspended|blacklisted
-  taxId           String?
-  registrationNo  String?
-  metadata        Json
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id             String    @id @default(cuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  businessCode   String // LAW-02: PRT-1403-00001
+  partyType      String // person|organization
+  displayName    String
+  status         String    @default("active") // active|inactive|suspended|blacklisted
+  taxId          String?
+  registrationNo String?
+  metadata       Json
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
   @@unique([tenantId, businessCode])
   @@index([tenantId, partyType])
@@ -240,24 +240,24 @@ model Party {
 // ============================================================
 
 model ProductCategory {
-  id            String   @id @default(cuid())
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  name          String
-  code          String
-  parentId      String?
-  parent        ProductCategory? @relation("CategoryTree", fields: [parentId], references: [id])
-  children      ProductCategory[] @relation("CategoryTree")
-  level         Int      @default(0)
-  path          String?
-  isActive      Boolean  @default(true)
-  description   String?
-  attributes    Json // expected attributes
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
+  id          String            @id @default(cuid())
+  tenantId    String
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  name        String
+  code        String
+  parentId    String?
+  parent      ProductCategory?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    ProductCategory[] @relation("CategoryTree")
+  level       Int               @default(0)
+  path        String?
+  isActive    Boolean           @default(true)
+  description String?
+  attributes  Json // expected attributes
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
 
-  models        ProductModel[]
+  models ProductModel[]
 
   @@unique([tenantId, code])
   @@index([parentId])
@@ -265,91 +265,91 @@ model ProductCategory {
 }
 
 model ProductBrand {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   tenantId            String
-  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  tenant              Tenant    @relation(fields: [tenantId], references: [id])
   name                String
   nameEn              String?
   code                String
   manufacturerPartyId String?
   logoFileId          String?
   description         String?
-  isActive            Boolean  @default(true)
+  isActive            Boolean   @default(true)
   metadata            Json
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   deletedAt           DateTime?
 
-  models              ProductModel[]
+  models ProductModel[]
 
   @@unique([tenantId, code])
   @@map("product_brands")
 }
 
 model ProductModel {
-  id              String   @id @default(cuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  brandId         String
-  brand           ProductBrand @relation(fields: [brandId], references: [id])
-  categoryId      String
-  category        ProductCategory @relation(fields: [categoryId], references: [id])
-  name            String
-  modelCode       String
-  description     String?
-  warrantyMonths  Int      @default(12)
-  isSerialized    Boolean  @default(true)
-  attributes      Json // model-level spec
-  status          String   @default("active") // draft|active|discontinued|recall
-  imageFileId     String?
-  metadata        Json
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id             String          @id @default(cuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  brandId        String
+  brand          ProductBrand    @relation(fields: [brandId], references: [id])
+  categoryId     String
+  category       ProductCategory @relation(fields: [categoryId], references: [id])
+  name           String
+  modelCode      String
+  description    String?
+  warrantyMonths Int             @default(12)
+  isSerialized   Boolean         @default(true)
+  attributes     Json // model-level spec
+  status         String          @default("active") // draft|active|discontinued|recall
+  imageFileId    String?
+  metadata       Json
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
 
-  products        Product[]
+  products Product[]
 
   @@unique([tenantId, modelCode])
   @@map("product_models")
 }
 
 model Product {
-  id              String   @id @default(cuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  modelId         String
-  model           ProductModel @relation(fields: [modelId], references: [id])
-  sku             String
-  name            String
-  productType     String   @default("serialized") // serialized|batch|bulk
-  barcodeValue    String?
-  unitOfMeasure   String   @default("piece")
-  weightGrams     Int?
-  dimensions      Json?
-  description     String?
-  status          String   @default("active") // draft|active|discontinued|recall
-  attributes      Json
-  metadata        Json
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id            String       @id @default(cuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  modelId       String
+  model         ProductModel @relation(fields: [modelId], references: [id])
+  sku           String
+  name          String
+  productType   String       @default("serialized") // serialized|batch|bulk
+  barcodeValue  String?
+  unitOfMeasure String       @default("piece")
+  weightGrams   Int?
+  dimensions    Json?
+  description   String?
+  status        String       @default("active") // draft|active|discontinued|recall
+  attributes    Json
+  metadata      Json
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
 
-  instances       ProductInstance[]
+  instances ProductInstance[]
 
   @@unique([tenantId, sku])
   @@map("products")
 }
 
 model ProductInstance {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   tenantId            String
-  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  tenant              Tenant    @relation(fields: [tenantId], references: [id])
   productId           String
-  product             Product  @relation(fields: [productId], references: [id])
+  product             Product   @relation(fields: [productId], references: [id])
   serialNumber        String
   qrCode              String?
-  status              String   @default("in_stock") // in_stock|reserved|sold|in_service|returned|scrapped|lost
-  condition           String   @default("new") // new|refurbished|used|damaged
+  status              String    @default("in_stock") // in_stock|reserved|sold|in_service|returned|scrapped|lost
+  condition           String    @default("new") // new|refurbished|used|damaged
   manufactureDate     DateTime?
   importDate          DateTime?
   warrantyStart       DateTime?
@@ -361,8 +361,8 @@ model ProductInstance {
   importBatch         String?
   attributes          Json // IMEI, MAC, etc.
   metadata            Json
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   deletedAt           DateTime?
 
   @@unique([tenantId, serialNumber])
@@ -374,14 +374,14 @@ model ProductInstance {
 // ============================================================
 
 model BusinessCodeSequence {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   tenantId        String
-  module          String   // e.g. "party", "sales_order", "product_category"
-  prefix          String   // e.g. "PRT", "SO", "CAT"
-  fiscalYear      Int      // Persian (Jalali) year
-  lastValue       Int      @default(0)
+  module          String // e.g. "party", "sales_order", "product_category"
+  prefix          String // e.g. "PRT", "SO", "CAT"
+  fiscalYear      Int // Persian (Jalali) year
+  lastValue       Int       @default(0)
   lastGeneratedAt DateTime?
-  updatedAt       DateTime @updatedAt
+  updatedAt       DateTime  @updatedAt
 
   // CRITICAL: Unique constraint ensures concurrent requests can't duplicate
   @@unique([tenantId, module, prefix, fiscalYear])
@@ -394,27 +394,27 @@ model BusinessCodeSequence {
 // ============================================================
 
 model Warehouse {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   tenantId        String
-  code            String   // Business code: WH-1403-00001
+  code            String // Business code: WH-1403-00001
   name            String
-  warehouseType   String   @default("main") // main|branch|service_center|transit|return
+  warehouseType   String    @default("main") // main|branch|service_center|transit|return
   branchId        String?
   serviceCenterId String?
   partyId         String?
   address         Json?
-  isActive        Boolean  @default(true)
-  isDefault       Boolean  @default(false)
+  isActive        Boolean   @default(true)
+  isDefault       Boolean   @default(false)
   capacityCubic   Float?
   metadata        Json?
-  version         Int      @default(1) // LAW-07: Optimistic Locking
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  version         Int       @default(1) // LAW-07: Optimistic Locking
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  zones           WarehouseZone[]
-  locations       Location[]
-  stockItems      StockItem[]
+  zones      WarehouseZone[]
+  locations  Location[]
+  stockItems StockItem[]
 
   @@unique([tenantId, code])
   @@index([tenantId, warehouseType])
@@ -422,48 +422,48 @@ model Warehouse {
 }
 
 model WarehouseZone {
-  id           String   @id @default(cuid())
-  tenantId     String
-  warehouseId  String
-  warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
-  code         String
-  name         String
-  zoneType     String?   // receiving|storage|shipping|returns|quarantine
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  tenantId    String
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  code        String
+  name        String
+  zoneType    String? // receiving|storage|shipping|returns|quarantine
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  locations    Location[]
+  locations Location[]
 
   @@unique([warehouseId, code])
   @@map("warehouse_zones")
 }
 
 model Location {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   tenantId     String
   warehouseId  String
-  warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
+  warehouse    Warehouse      @relation(fields: [warehouseId], references: [id])
   zoneId       String?
   zone         WarehouseZone? @relation(fields: [zoneId], references: [id])
   parentId     String?
-  parent       Location?  @relation("LocationTree", fields: [parentId], references: [id])
-  children     Location[] @relation("LocationTree")
-  locationType String    // zone|aisle|rack|bin|shelf
+  parent       Location?      @relation("LocationTree", fields: [parentId], references: [id])
+  children     Location[]     @relation("LocationTree")
+  locationType String // zone|aisle|rack|bin|shelf
   code         String
   name         String?
   fullPath     String
-  level        Int       @default(0)
-  isActive     Boolean   @default(true)
-  isPickable   Boolean   @default(true)
+  level        Int            @default(0)
+  isActive     Boolean        @default(true)
+  isPickable   Boolean        @default(true)
   capacity     Json?
   metadata     Json?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   deletedAt    DateTime?
 
-  bins         Bin[]
-  stockItems   StockItem[]
+  bins       Bin[]
+  stockItems StockItem[]
 
   @@unique([warehouseId, code])
   @@index([parentId])
@@ -495,32 +495,32 @@ model Bin {
 // ============================================================
 
 model StockItem {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  warehouseId         String
-  warehouse           Warehouse @relation(fields: [warehouseId], references: [id])
-  locationId          String?
-  location            Location? @relation(fields: [locationId], references: [id])
-  binId               String?
-  productId           String   // FK to Product (loose, cross-context — LAW-04)
-  productInstanceId   String?  // for serialized products (1:1 with instance)
-  batchNumber         String?
+  id                String    @id @default(cuid())
+  tenantId          String
+  warehouseId       String
+  warehouse         Warehouse @relation(fields: [warehouseId], references: [id])
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id])
+  binId             String?
+  productId         String // FK to Product (loose, cross-context — LAW-04)
+  productInstanceId String? // for serialized products (1:1 with instance)
+  batchNumber       String?
   // ❌ NO on_hand_quantity column — LAW-05: derived from InventoryTransaction
-  reservedQuantity    Float    @default(0)
+  reservedQuantity  Float     @default(0)
   // availableQuantity is NOT stored — computed on read from ledger
-  status              String   @default("available") // available|damaged|quarantine|expired
-  receivedDate        DateTime?
-  expiryDate          DateTime?
-  lastTransactionAt   DateTime?
-  metadata            Json?
-  version             Int      @default(1) // LAW-07: Optimistic Locking
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  status            String    @default("available") // available|damaged|quarantine|expired
+  receivedDate      DateTime?
+  expiryDate        DateTime?
+  lastTransactionAt DateTime?
+  metadata          Json?
+  version           Int       @default(1) // LAW-07: Optimistic Locking
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
 
-  transactions        InventoryTransaction[]
-  reservations        StockReservation[]
-  balance             StockBalance?
+  transactions InventoryTransaction[]
+  reservations StockReservation[]
+  balance      StockBalance?
 
   @@unique([tenantId, warehouseId, productId, productInstanceId, batchNumber])
   @@index([tenantId, productId, warehouseId])
@@ -529,29 +529,29 @@ model StockItem {
 }
 
 model InventoryTransaction {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  transactionNumber   String   // business code: IT-1403-00001
-  transactionType     String   // IN|OUT|TRANSFER|ADJUSTMENT|RESERVATION|RELEASE|COUNT
-  stockItemId         String
-  stockItem           StockItem @relation(fields: [stockItemId], references: [id])
-  productId           String
-  productInstanceId   String?
-  fromWarehouseId     String?
-  fromLocationId      String?
-  toWarehouseId       String?
-  toLocationId        String?
-  batchNumber         String?
-  quantity            Float    // positive for IN, negative for OUT
-  unitCost            Float?
+  id                String    @id @default(cuid())
+  tenantId          String
+  transactionNumber String // business code: IT-1403-00001
+  transactionType   String // IN|OUT|TRANSFER|ADJUSTMENT|RESERVATION|RELEASE|COUNT
+  stockItemId       String
+  stockItem         StockItem @relation(fields: [stockItemId], references: [id])
+  productId         String
+  productInstanceId String?
+  fromWarehouseId   String?
+  fromLocationId    String?
+  toWarehouseId     String?
+  toLocationId      String?
+  batchNumber       String?
+  quantity          Float // positive for IN, negative for OUT
+  unitCost          Float?
   // ❌ NO totalCost stored as generated — pricing method (FIFO/LIFO/AVG) varies
-  reason              String?
-  referenceType       String?  // purchase_order|sales_order|transfer|count|adjustment
-  referenceId         String?
-  performedBy         String?
-  occurredAt          DateTime @default(now())
-  metadata            Json?
-  createdAt           DateTime @default(now())
+  reason            String?
+  referenceType     String? // purchase_order|sales_order|transfer|count|adjustment
+  referenceId       String?
+  performedBy       String?
+  occurredAt        DateTime  @default(now())
+  metadata          Json?
+  createdAt         DateTime  @default(now())
 
   @@unique([tenantId, transactionNumber])
   @@index([tenantId, occurredAt])
@@ -563,46 +563,46 @@ model InventoryTransaction {
 
 model StockBalance {
   // Snapshot — explicitly marked as DERIVED (LAW-05)
-  id                  String   @id @default(cuid())
-  tenantId            String
-  stockItemId         String   @unique
-  stockItem           StockItem @relation(fields: [stockItemId], references: [id])
-  onHandQuantity      Float    @default(0) // DERIVED from ledger
-  reservedQuantity    Float    @default(0)
-  availableQuantity   Float    @default(0) // DERIVED: on_hand - reserved
-  lastTransactionId   String?
-  snapshotAt          DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String    @id @default(cuid())
+  tenantId          String
+  stockItemId       String    @unique
+  stockItem         StockItem @relation(fields: [stockItemId], references: [id])
+  onHandQuantity    Float     @default(0) // DERIVED from ledger
+  reservedQuantity  Float     @default(0)
+  availableQuantity Float     @default(0) // DERIVED: on_hand - reserved
+  lastTransactionId String?
+  snapshotAt        DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@map("stock_balances")
 }
 
 model StockReservation {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  reservationNumber   String   // business code: RES-1403-00001
-  stockItemId         String
-  stockItem           StockItem @relation(fields: [stockItemId], references: [id])
-  productId           String
-  productInstanceId   String?
-  warehouseId         String
-  reservedQuantity    Float
-  reservationType     String   // sales_order|service_request|transfer|manual
-  referenceType       String?
-  referenceId         String?
-  reservedBy          String?
-  reservedForPartyId  String?
-  reservedAt          DateTime @default(now())
-  expiresAt           DateTime
-  releasedAt          DateTime?
-  releasedBy          String?
-  releaseReason       String?
-  consumedAt          DateTime?
-  status              String   @default("active") // active|released|consumed|expired
-  metadata            Json?
-  version             Int      @default(1) // LAW-07
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  tenantId           String
+  reservationNumber  String // business code: RES-1403-00001
+  stockItemId        String
+  stockItem          StockItem @relation(fields: [stockItemId], references: [id])
+  productId          String
+  productInstanceId  String?
+  warehouseId        String
+  reservedQuantity   Float
+  reservationType    String // sales_order|service_request|transfer|manual
+  referenceType      String?
+  referenceId        String?
+  reservedBy         String?
+  reservedForPartyId String?
+  reservedAt         DateTime  @default(now())
+  expiresAt          DateTime
+  releasedAt         DateTime?
+  releasedBy         String?
+  releaseReason      String?
+  consumedAt         DateTime?
+  status             String    @default("active") // active|released|consumed|expired
+  metadata           Json?
+  version            Int       @default(1) // LAW-07
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@unique([tenantId, reservationNumber])
   @@index([stockItemId, status])
@@ -616,31 +616,31 @@ model StockReservation {
 // ============================================================
 
 model StockTransfer {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  transferNumber      String   // business code: TR-1403-00001
-  transferType        String   // warehouse|zone|bin
-  fromWarehouseId     String
-  toWarehouseId       String?
-  fromLocationId      String?
-  toLocationId        String?
-  fromBinId           String?
-  toBinId             String?
-  status              String   @default("draft") // draft|in_transit|received|partial|cancelled
-  transferDate        DateTime @default(now())
-  expectedArrival     DateTime?
-  actualArrival       DateTime?
-  shippedBy           String?
-  receivedBy          String?
-  transporterPartyId  String?
-  notes               String?
-  metadata            Json?
-  version             Int      @default(1) // LAW-07
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  id                 String    @id @default(cuid())
+  tenantId           String
+  transferNumber     String // business code: TR-1403-00001
+  transferType       String // warehouse|zone|bin
+  fromWarehouseId    String
+  toWarehouseId      String?
+  fromLocationId     String?
+  toLocationId       String?
+  fromBinId          String?
+  toBinId            String?
+  status             String    @default("draft") // draft|in_transit|received|partial|cancelled
+  transferDate       DateTime  @default(now())
+  expectedArrival    DateTime?
+  actualArrival      DateTime?
+  shippedBy          String?
+  receivedBy         String?
+  transporterPartyId String?
+  notes              String?
+  metadata           Json?
+  version            Int       @default(1) // LAW-07
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
-  lines               StockTransferLine[]
+  lines StockTransferLine[]
 
   @@unique([tenantId, transferNumber])
   @@index([fromWarehouseId, status])
@@ -649,22 +649,22 @@ model StockTransfer {
 }
 
 model StockTransferLine {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  transferId          String
-  transfer            StockTransfer @relation(fields: [transferId], references: [id])
-  stockItemId         String
-  productId           String
-  productInstanceId   String?
-  batchNumber         String?
-  quantity            Float
-  quantityReceived    Float    @default(0)
-  unitCost            Float?
-  fromLocationId      String?
-  toLocationId        String?
-  notes               String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String        @id @default(cuid())
+  tenantId          String
+  transferId        String
+  transfer          StockTransfer @relation(fields: [transferId], references: [id])
+  stockItemId       String
+  productId         String
+  productInstanceId String?
+  batchNumber       String?
+  quantity          Float
+  quantityReceived  Float         @default(0)
+  unitCost          Float?
+  fromLocationId    String?
+  toLocationId      String?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   @@index([transferId])
   @@map("stock_transfer_lines")
@@ -677,28 +677,28 @@ model StockTransferLine {
 // ============================================================
 
 model CycleCount {
-  id              String   @id @default(cuid())
-  tenantId        String
-  countNumber     String   // business code: SC-1403-00001
-  warehouseId     String
-  countType       String   // full|cycle|spot
-  status          String   @default("draft") // draft|in_progress|completed|approved|adjusted|cancelled
-  scheduledDate   DateTime @default(now())
-  startedAt       DateTime?
-  completedAt     DateTime?
-  approvedAt      DateTime?
-  approvedBy      String?
-  adjustedAt      DateTime?
-  countedBy       String?
-  reconciledBy    String?
-  notes           String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id            String    @id @default(cuid())
+  tenantId      String
+  countNumber   String // business code: SC-1403-00001
+  warehouseId   String
+  countType     String // full|cycle|spot
+  status        String    @default("draft") // draft|in_progress|completed|approved|adjusted|cancelled
+  scheduledDate DateTime  @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+  approvedAt    DateTime?
+  approvedBy    String?
+  adjustedAt    DateTime?
+  countedBy     String?
+  reconciledBy  String?
+  notes         String?
+  metadata      Json?
+  version       Int       @default(1) // LAW-07
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
-  lines           CycleCountLine[]
+  lines CycleCountLine[]
 
   @@unique([tenantId, countNumber])
   @@index([warehouseId, status])
@@ -706,28 +706,28 @@ model CycleCount {
 }
 
 model CycleCountLine {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  cycleCountId        String
-  cycleCount          CycleCount @relation(fields: [cycleCountId], references: [id])
-  stockItemId         String
-  productId           String
-  productInstanceId   String?
-  batchNumber         String?
-  warehouseId         String
-  locationId          String?
+  id                String     @id @default(cuid())
+  tenantId          String
+  cycleCountId      String
+  cycleCount        CycleCount @relation(fields: [cycleCountId], references: [id])
+  stockItemId       String
+  productId         String
+  productInstanceId String?
+  batchNumber       String?
+  warehouseId       String
+  locationId        String?
   // System quantity (snapshot at time of count start — LAW-05: from ledger)
-  systemQuantity      Float    @default(0)
+  systemQuantity    Float      @default(0)
   // Counted quantity (entered by person doing physical count)
-  countedQuantity     Float?
+  countedQuantity   Float?
   // Variance = counted - system (computed, not stored as truth)
   // recountQuantity   Float?
-  isReconciled        Boolean  @default(false)
-  varianceReason      String?
-  notes               String?
-  countedAt           DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  isReconciled      Boolean    @default(false)
+  varianceReason    String?
+  notes             String?
+  countedAt         DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   @@unique([cycleCountId, stockItemId])
   @@index([cycleCountId])
@@ -742,34 +742,34 @@ model CycleCountLine {
 // ============================================================
 
 model SalesOrder {
-  id              String   @id @default(cuid())
-  tenantId        String
-  orderNumber     String   // business code: SO-1403-00001
-  customerPartyId String   // FK to Party (loose, cross-context — LAW-04)
-  salesRepPartyId String?
-  branchId        String?
-  orderDate       DateTime @default(now())
+  id               String    @id @default(cuid())
+  tenantId         String
+  orderNumber      String // business code: SO-1403-00001
+  customerPartyId  String // FK to Party (loose, cross-context — LAW-04)
+  salesRepPartyId  String?
+  branchId         String?
+  orderDate        DateTime  @default(now())
   expectedDelivery DateTime?
-  actualDelivery  DateTime?
-  status          String   @default("draft") // draft|pending_approval|approved|rejected|invoiced|shipped|partially_shipped|completed|cancelled
-  paymentStatus   String   @default("unpaid") // unpaid|partial|paid
+  actualDelivery   DateTime?
+  status           String    @default("draft") // draft|pending_approval|approved|rejected|invoiced|shipped|partially_shipped|completed|cancelled
+  paymentStatus    String    @default("unpaid") // unpaid|partial|paid
 
   // Financial fields
-  subtotal        Float    @default(0)
-  discountAmount  Float    @default(0)
-  taxAmount       Float    @default(0)
-  shippingAmount  Float    @default(0)
-  totalAmount     Float    @default(0)
-  currencyCode    String   @default("IRR")
+  subtotal       Float  @default(0)
+  discountAmount Float  @default(0)
+  taxAmount      Float  @default(0)
+  shippingAmount Float  @default(0)
+  totalAmount    Float  @default(0)
+  currencyCode   String @default("IRR")
 
-  notes           String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07: Optimistic Lock
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  notes     String?
+  metadata  Json?
+  version   Int       @default(1) // LAW-07: Optimistic Lock
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  lines           SalesOrderLine[]
+  lines SalesOrderLine[]
 
   @@unique([tenantId, orderNumber])
   @@index([tenantId, customerPartyId, orderDate])
@@ -778,26 +778,26 @@ model SalesOrder {
 }
 
 model SalesOrderLine {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  salesOrderId        String
-  salesOrder          SalesOrder @relation(fields: [salesOrderId], references: [id])
-  lineNumber          Int
-  productId           String   // FK to Product (loose — LAW-04)
-  productInstanceId   String?  // for serialized products
-  quantityOrdered     Float
-  quantityReserved    Float    @default(0)
-  quantityShipped     Float    @default(0)
-  quantityReturned    Float    @default(0)
-  unitPrice           Float
-  discountPercent     Float    @default(0)
-  discountAmount      Float    @default(0)
-  taxPercent          Float    @default(0)
-  taxAmount           Float    @default(0)
-  lineTotal           Float
-  notes               String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String     @id @default(cuid())
+  tenantId          String
+  salesOrderId      String
+  salesOrder        SalesOrder @relation(fields: [salesOrderId], references: [id])
+  lineNumber        Int
+  productId         String // FK to Product (loose — LAW-04)
+  productInstanceId String? // for serialized products
+  quantityOrdered   Float
+  quantityReserved  Float      @default(0)
+  quantityShipped   Float      @default(0)
+  quantityReturned  Float      @default(0)
+  unitPrice         Float
+  discountPercent   Float      @default(0)
+  discountAmount    Float      @default(0)
+  taxPercent        Float      @default(0)
+  taxAmount         Float      @default(0)
+  lineTotal         Float
+  notes             String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   @@unique([salesOrderId, lineNumber])
   @@index([productId])
@@ -805,40 +805,40 @@ model SalesOrderLine {
 }
 
 model PriceList {
-  id              String   @id @default(cuid())
-  tenantId        String
-  listCode        String   // business code: PL-1403-001
-  name            String
-  priceType       String   // retail|wholesale|dealer|special
-  validFrom       DateTime @default(now())
-  validTo         DateTime?
-  isActive        Boolean  @default(true)
-  currencyCode    String   @default("IRR")
-  description     String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id           String    @id @default(cuid())
+  tenantId     String
+  listCode     String // business code: PL-1403-001
+  name         String
+  priceType    String // retail|wholesale|dealer|special
+  validFrom    DateTime  @default(now())
+  validTo      DateTime?
+  isActive     Boolean   @default(true)
+  currencyCode String    @default("IRR")
+  description  String?
+  metadata     Json?
+  version      Int       @default(1) // LAW-07
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
-  lines           PriceListLine[]
+  lines PriceListLine[]
 
   @@unique([tenantId, listCode])
   @@map("price_lists")
 }
 
 model PriceListLine {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   tenantId        String
   priceListId     String
   priceList       PriceList @relation(fields: [priceListId], references: [id])
-  productId       String   // FK to Product (loose — LAW-04)
+  productId       String // FK to Product (loose — LAW-04)
   unitPrice       Float
-  minQuantity     Float    @default(1)
-  discountPercent Float    @default(0)
-  validFrom       DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  minQuantity     Float     @default(1)
+  discountPercent Float     @default(0)
+  validFrom       DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([priceListId, productId, minQuantity])
   @@index([productId])
@@ -846,29 +846,29 @@ model PriceListLine {
 }
 
 model Quote {
-  id              String   @id @default(cuid())
-  tenantId        String
-  quoteNumber     String   // business code: QUO-1403-00001
-  customerPartyId String
-  salesRepPartyId String?
-  quoteDate       DateTime @default(now())
-  validUntil      DateTime
-  status          String   @default("draft") // draft|sent|accepted|rejected|expired|converted
-  subtotal        Float    @default(0)
-  discountAmount  Float    @default(0)
-  taxAmount       Float    @default(0)
-  totalAmount     Float    @default(0)
-  currencyCode    String   @default("IRR")
-  customerApprovedAt DateTime?
+  id                    String    @id @default(cuid())
+  tenantId              String
+  quoteNumber           String // business code: QUO-1403-00001
+  customerPartyId       String
+  salesRepPartyId       String?
+  quoteDate             DateTime  @default(now())
+  validUntil            DateTime
+  status                String    @default("draft") // draft|sent|accepted|rejected|expired|converted
+  subtotal              Float     @default(0)
+  discountAmount        Float     @default(0)
+  taxAmount             Float     @default(0)
+  totalAmount           Float     @default(0)
+  currencyCode          String    @default("IRR")
+  customerApprovedAt    DateTime?
   convertedSalesOrderId String?
-  notes           String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  notes                 String?
+  metadata              Json?
+  version               Int       @default(1) // LAW-07
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
 
-  lines           QuoteLine[]
+  lines QuoteLine[]
 
   @@unique([tenantId, quoteNumber])
   @@index([tenantId, customerPartyId])
@@ -876,22 +876,22 @@ model Quote {
 }
 
 model QuoteLine {
-  id              String   @id @default(cuid())
-  tenantId        String
-  quoteId         String
-  quote           Quote    @relation(fields: [quoteId], references: [id])
-  lineNumber      Int
-  productId       String
+  id                String   @id @default(cuid())
+  tenantId          String
+  quoteId           String
+  quote             Quote    @relation(fields: [quoteId], references: [id])
+  lineNumber        Int
+  productId         String
   productInstanceId String?
-  quantity        Float
-  unitPrice       Float
-  discountPercent Float    @default(0)
-  discountAmount  Float    @default(0)
-  taxPercent      Float    @default(0)
-  taxAmount       Float    @default(0)
-  lineTotal       Float
-  notes           String?
-  createdAt       DateTime @default(now())
+  quantity          Float
+  unitPrice         Float
+  discountPercent   Float    @default(0)
+  discountAmount    Float    @default(0)
+  taxPercent        Float    @default(0)
+  taxAmount         Float    @default(0)
+  lineTotal         Float
+  notes             String?
+  createdAt         DateTime @default(now())
 
   @@unique([quoteId, lineNumber])
   @@map("quote_lines")
@@ -906,33 +906,33 @@ model QuoteLine {
 // ============================================================
 
 model Shipment {
-  id              String   @id @default(cuid())
-  tenantId        String
-  shipmentNumber  String   // business code: SHP-1403-00001
-  salesOrderId    String?  // FK to SalesOrder (same context)
-  customerPartyId String   // FK to Party (loose, cross-context — LAW-04)
-  fromWarehouseId String
-  toPartyId       String   // customer
-  status          String   @default("draft") // draft|picking|packing|shipped|delivered|returned|cancelled
-  shipmentDate    DateTime @default(now())
-  expectedArrival DateTime?
-  actualArrival   DateTime?
-  shippedAt       DateTime?
-  deliveredAt     DateTime?
-  shippingMethod  String?  // in_house|courier|post
+  id                 String    @id @default(cuid())
+  tenantId           String
+  shipmentNumber     String // business code: SHP-1403-00001
+  salesOrderId       String? // FK to SalesOrder (same context)
+  customerPartyId    String // FK to Party (loose, cross-context — LAW-04)
+  fromWarehouseId    String
+  toPartyId          String // customer
+  status             String    @default("draft") // draft|picking|packing|shipped|delivered|returned|cancelled
+  shipmentDate       DateTime  @default(now())
+  expectedArrival    DateTime?
+  actualArrival      DateTime?
+  shippedAt          DateTime?
+  deliveredAt        DateTime?
+  shippingMethod     String? // in_house|courier|post
   transporterPartyId String?
-  trackingNumber  String?
-  shippingCost    Float    @default(0)
-  currencyCode    String   @default("IRR")
-  notes           String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  trackingNumber     String?
+  shippingCost       Float     @default(0)
+  currencyCode       String    @default("IRR")
+  notes              String?
+  metadata           Json?
+  version            Int       @default(1) // LAW-07
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
-  lines           ShipmentLine[]
-  pickList        PickList?
+  lines    ShipmentLine[]
+  pickList PickList?
 
   @@unique([tenantId, shipmentNumber])
   @@index([salesOrderId])
@@ -941,26 +941,26 @@ model Shipment {
 }
 
 model ShipmentLine {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  shipmentId          String
-  shipment            Shipment @relation(fields: [shipmentId], references: [id])
-  salesOrderLineId    String?
-  lineNumber          Int
-  productId           String
-  productInstanceId   String?
-  quantity            Float
-  quantityPicked      Float    @default(0)
-  quantityPacked      Float    @default(0)
-  quantityShipped     Float    @default(0)
-  quantityDelivered   Float    @default(0)
-  quantityReturned    Float    @default(0)
-  fromLocationId      String?
-  toLocationId        String?
-  batchNumber         String?
-  notes               String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String   @id @default(cuid())
+  tenantId          String
+  shipmentId        String
+  shipment          Shipment @relation(fields: [shipmentId], references: [id])
+  salesOrderLineId  String?
+  lineNumber        Int
+  productId         String
+  productInstanceId String?
+  quantity          Float
+  quantityPicked    Float    @default(0)
+  quantityPacked    Float    @default(0)
+  quantityShipped   Float    @default(0)
+  quantityDelivered Float    @default(0)
+  quantityReturned  Float    @default(0)
+  fromLocationId    String?
+  toLocationId      String?
+  batchNumber       String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@unique([shipmentId, lineNumber])
   @@index([productId])
@@ -968,43 +968,43 @@ model ShipmentLine {
 }
 
 model PickList {
-  id              String   @id @default(cuid())
-  tenantId        String
-  pickListNumber  String   // business code: PL-1403-00001
-  shipmentId      String   @unique
-  shipment        Shipment @relation(fields: [shipmentId], references: [id])
-  warehouseId     String
-  status          String   @default("pending") // pending|in_progress|completed|cancelled
-  assignedTo      String?
-  startedAt       DateTime?
-  completedAt     DateTime?
-  notes           String?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  tenantId       String
+  pickListNumber String // business code: PL-1403-00001
+  shipmentId     String    @unique
+  shipment       Shipment  @relation(fields: [shipmentId], references: [id])
+  warehouseId    String
+  status         String    @default("pending") // pending|in_progress|completed|cancelled
+  assignedTo     String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  notes          String?
+  version        Int       @default(1) // LAW-07
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  lines           PickListLine[]
+  lines PickListLine[]
 
   @@unique([tenantId, pickListNumber])
   @@map("pick_lists")
 }
 
 model PickListLine {
-  id              String   @id @default(cuid())
-  tenantId        String
-  pickListId      String
-  pickList        PickList @relation(fields: [pickListId], references: [id])
-  shipmentLineId  String
-  productId       String
+  id                String    @id @default(cuid())
+  tenantId          String
+  pickListId        String
+  pickList          PickList  @relation(fields: [pickListId], references: [id])
+  shipmentLineId    String
+  productId         String
   productInstanceId String?
-  locationId      String?
-  quantityToPick  Float
-  quantityPicked  Float    @default(0)
-  isPicked        Boolean  @default(false)
-  pickedAt        DateTime?
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  locationId        String?
+  quantityToPick    Float
+  quantityPicked    Float     @default(0)
+  isPicked          Boolean   @default(false)
+  pickedAt          DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([pickListId, shipmentLineId])
   @@map("pick_list_lines")
@@ -1019,35 +1019,35 @@ model PickListLine {
 // ============================================================
 
 model Invoice {
-  id              String   @id @default(cuid())
-  tenantId        String
-  invoiceNumber   String   // business code: INV-1403-00001
-  salesOrderId    String?  // FK to SalesOrder (same context)
-  customerPartyId String   // FK to Party (loose — LAW-04)
-  invoiceDate     DateTime @default(now())
-  dueDate         DateTime?
-  status          String   @default("draft") // draft|issued|partially_paid|paid|cancelled|reversed
-  subtotal        Float    @default(0)
-  discountAmount  Float    @default(0)
-  taxAmount       Float    @default(0)
-  shippingAmount  Float    @default(0)
-  totalAmount     Float    @default(0)
-  paidAmount      Float    @default(0)
+  id               String    @id @default(cuid())
+  tenantId         String
+  invoiceNumber    String // business code: INV-1403-00001
+  salesOrderId     String? // FK to SalesOrder (same context)
+  customerPartyId  String // FK to Party (loose — LAW-04)
+  invoiceDate      DateTime  @default(now())
+  dueDate          DateTime?
+  status           String    @default("draft") // draft|issued|partially_paid|paid|cancelled|reversed
+  subtotal         Float     @default(0)
+  discountAmount   Float     @default(0)
+  taxAmount        Float     @default(0)
+  shippingAmount   Float     @default(0)
+  totalAmount      Float     @default(0)
+  paidAmount       Float     @default(0)
   // balanceDue = totalAmount - paidAmount (computed on read — LAW-05)
-  currencyCode    String   @default("IRR")
-  taxInvoiceNumber String?  // official tax invoice number
-  notes           String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  issuedAt        DateTime?
-  cancelledAt     DateTime?
-  reversedAt      DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  currencyCode     String    @default("IRR")
+  taxInvoiceNumber String? // official tax invoice number
+  notes            String?
+  metadata         Json?
+  version          Int       @default(1) // LAW-07
+  issuedAt         DateTime?
+  cancelledAt      DateTime?
+  reversedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
 
-  lines           InvoiceLine[]
-  allocations     PaymentAllocation[]
+  lines       InvoiceLine[]
+  allocations PaymentAllocation[]
 
   @@unique([tenantId, invoiceNumber])
   @@index([salesOrderId])
@@ -1057,47 +1057,47 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id              String   @id @default(cuid())
-  tenantId        String
-  invoiceId       String
-  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
-  salesOrderLineId String?
-  lineNumber      Int
-  productId       String
+  id                String   @id @default(cuid())
+  tenantId          String
+  invoiceId         String
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id])
+  salesOrderLineId  String?
+  lineNumber        Int
+  productId         String
   productInstanceId String?
-  quantity        Float
-  unitPrice       Float
-  discountAmount  Float    @default(0)
-  taxAmount       Float    @default(0)
-  lineTotal       Float
-  notes           String?
-  createdAt       DateTime @default(now())
+  quantity          Float
+  unitPrice         Float
+  discountAmount    Float    @default(0)
+  taxAmount         Float    @default(0)
+  lineTotal         Float
+  notes             String?
+  createdAt         DateTime @default(now())
 
   @@unique([invoiceId, lineNumber])
   @@map("invoice_lines")
 }
 
 model Payment {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   tenantId        String
-  paymentNumber   String   // business code: PAY-1403-00001
-  customerPartyId String   // FK to Party (loose — LAW-04)
-  paymentDate     DateTime @default(now())
+  paymentNumber   String // business code: PAY-1403-00001
+  customerPartyId String // FK to Party (loose — LAW-04)
+  paymentDate     DateTime  @default(now())
   amount          Float
-  currencyCode    String   @default("IRR")
-  paymentMethod   String   // cash|bank_transfer|check|credit_card|pos|online|wallet
-  status          String   @default("pending") // pending|partially_allocated|completed|cancelled|failed
-  referenceNumber String?  // bank reference / transaction ID
+  currencyCode    String    @default("IRR")
+  paymentMethod   String // cash|bank_transfer|check|credit_card|pos|online|wallet
+  status          String    @default("pending") // pending|partially_allocated|completed|cancelled|failed
+  referenceNumber String? // bank reference / transaction ID
   bankAccount     String?
   depositedAt     DateTime?
   notes           String?
   metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  version         Int       @default(1) // LAW-07
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  allocations     PaymentAllocation[]
+  allocations PaymentAllocation[]
 
   @@unique([tenantId, paymentNumber])
   @@index([tenantId, customerPartyId, paymentDate])
@@ -1124,28 +1124,28 @@ model PaymentAllocation {
 }
 
 model CreditNote {
-  id              String   @id @default(cuid())
-  tenantId        String
-  creditNoteNumber String  // business code: CN-1403-00001
-  invoiceId       String   // the invoice being credited
-  customerPartyId String
-  creditNoteDate  DateTime @default(now())
-  status          String   @default("draft") // draft|issued|applied|cancelled
-  subtotal        Float    @default(0)
-  taxAmount       Float    @default(0)
-  totalAmount     Float    @default(0)
-  currencyCode    String   @default("IRR")
-  reason          String?
-  notes           String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  issuedAt        DateTime?
-  appliedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id               String    @id @default(cuid())
+  tenantId         String
+  creditNoteNumber String // business code: CN-1403-00001
+  invoiceId        String // the invoice being credited
+  customerPartyId  String
+  creditNoteDate   DateTime  @default(now())
+  status           String    @default("draft") // draft|issued|applied|cancelled
+  subtotal         Float     @default(0)
+  taxAmount        Float     @default(0)
+  totalAmount      Float     @default(0)
+  currencyCode     String    @default("IRR")
+  reason           String?
+  notes            String?
+  metadata         Json?
+  version          Int       @default(1) // LAW-07
+  issuedAt         DateTime?
+  appliedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
 
-  lines           CreditNoteLine[]
+  lines CreditNoteLine[]
 
   @@unique([tenantId, creditNoteNumber])
   @@index([invoiceId])
@@ -1153,20 +1153,20 @@ model CreditNote {
 }
 
 model CreditNoteLine {
-  id              String   @id @default(cuid())
-  tenantId        String
-  creditNoteId    String
-  creditNote      CreditNote @relation(fields: [creditNoteId], references: [id])
-  invoiceLineId   String?
-  lineNumber      Int
-  productId       String?
-  description     String
-  quantity        Float    @default(1)
-  unitPrice       Float    @default(0)
-  taxAmount       Float    @default(0)
-  lineTotal       Float
-  notes           String?
-  createdAt       DateTime @default(now())
+  id            String     @id @default(cuid())
+  tenantId      String
+  creditNoteId  String
+  creditNote    CreditNote @relation(fields: [creditNoteId], references: [id])
+  invoiceLineId String?
+  lineNumber    Int
+  productId     String?
+  description   String
+  quantity      Float      @default(1)
+  unitPrice     Float      @default(0)
+  taxAmount     Float      @default(0)
+  lineTotal     Float
+  notes         String?
+  createdAt     DateTime   @default(now())
 
   @@unique([creditNoteId, lineNumber])
   @@map("credit_note_lines")
@@ -1181,34 +1181,34 @@ model CreditNoteLine {
 // ============================================================
 
 model ReturnOrder {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  returnNumber        String   // business code: RET-1403-00001
-  salesOrderId        String?  // original sales order
-  invoiceId           String?  // original invoice
-  customerPartyId     String
-  returnType          String   @default("refund") // refund|replacement|return_only
-  status              String   @default("draft") // draft|submitted|approved|received|closed|cancelled
-  returnDate          DateTime @default(now())
-  approvedAt          DateTime?
-  approvedBy          String?
-  receivedAt          DateTime?
-  receivedBy          String?
-  closedAt            DateTime?
-  refundAmount        Float    @default(0)
-  currencyCode        String   @default("IRR")
-  reason              String?
-  notes               String?
-  metadata            Json?
-  version             Int      @default(1) // LAW-07
+  id                      String    @id @default(cuid())
+  tenantId                String
+  returnNumber            String // business code: RET-1403-00001
+  salesOrderId            String? // original sales order
+  invoiceId               String? // original invoice
+  customerPartyId         String
+  returnType              String    @default("refund") // refund|replacement|return_only
+  status                  String    @default("draft") // draft|submitted|approved|received|closed|cancelled
+  returnDate              DateTime  @default(now())
+  approvedAt              DateTime?
+  approvedBy              String?
+  receivedAt              DateTime?
+  receivedBy              String?
+  closedAt                DateTime?
+  refundAmount            Float     @default(0)
+  currencyCode            String    @default("IRR")
+  reason                  String?
+  notes                   String?
+  metadata                Json?
+  version                 Int       @default(1) // LAW-07
   // LAW-24: Replacement links
   replacementSalesOrderId String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  deletedAt               DateTime?
 
-  lines               ReturnOrderLine[]
-  refunds             Refund[]
+  lines   ReturnOrderLine[]
+  refunds Refund[]
 
   @@unique([tenantId, returnNumber])
   @@index([salesOrderId])
@@ -1218,52 +1218,52 @@ model ReturnOrder {
 }
 
 model ReturnOrderLine {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  returnOrderId       String
-  returnOrder         ReturnOrder @relation(fields: [returnOrderId], references: [id])
-  lineNumber          Int
-  productId           String
-  productInstanceId   String?
-  quantityReturned    Float
-  unitPrice           Float
-  lineTotal           Float
-  returnReason        String?
+  id                 String      @id @default(cuid())
+  tenantId           String
+  returnOrderId      String
+  returnOrder        ReturnOrder @relation(fields: [returnOrderId], references: [id])
+  lineNumber         Int
+  productId          String
+  productInstanceId  String?
+  quantityReturned   Float
+  unitPrice          Float
+  lineTotal          Float
+  returnReason       String?
   // LAW-22: Physical Inspection fields
-  inspectedCondition  String?  // new|used|damaged|defective
-  inspectionNotes     String?
-  inspectedBy         String?
-  inspectedAt         DateTime?
-  isInspected         Boolean  @default(false)
-  notes               String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  inspectedCondition String? // new|used|damaged|defective
+  inspectionNotes    String?
+  inspectedBy        String?
+  inspectedAt        DateTime?
+  isInspected        Boolean     @default(false)
+  notes              String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   @@unique([returnOrderId, lineNumber])
   @@map("return_order_lines")
 }
 
 model Refund {
-  id              String   @id @default(cuid())
+  id              String      @id @default(cuid())
   tenantId        String
-  refundNumber    String   // business code: RFD-1403-00001
-  returnOrderId   String   // LAW-23: requires approved return
+  refundNumber    String // business code: RFD-1403-00001
+  returnOrderId   String // LAW-23: requires approved return
   returnOrder     ReturnOrder @relation(fields: [returnOrderId], references: [id])
   customerPartyId String
-  refundDate      DateTime @default(now())
+  refundDate      DateTime    @default(now())
   amount          Float
-  currencyCode    String   @default("IRR")
-  refundMethod    String   // cash|bank_transfer|check|credit_card|pos|online|wallet
-  status          String   @default("pending") // pending|approved|completed|cancelled
+  currencyCode    String      @default("IRR")
+  refundMethod    String // cash|bank_transfer|check|credit_card|pos|online|wallet
+  status          String      @default("pending") // pending|approved|completed|cancelled
   referenceNumber String?
   approvedAt      DateTime?
   approvedBy      String?
   completedAt     DateTime?
   notes           String?
   metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  version         Int         @default(1) // LAW-07
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
   deletedAt       DateTime?
 
   @@unique([tenantId, refundNumber])
@@ -1281,35 +1281,35 @@ model Refund {
 // ============================================================
 
 model SagaDefinition {
-  id              String   @id @default(cuid())
-  tenantId        String
-  key             String   // e.g., 'sales_order_fulfillment'
-  name            String
-  description     String?
-  steps           Json     // [{ step: 1, name: 'reserve_inventory', event: 'sales_order.approved', compensation: 'release_reservation' }]
-  isActive        Boolean  @default(true)
-  version         Int      @default(1)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id          String   @id @default(cuid())
+  tenantId    String
+  key         String // e.g., 'sales_order_fulfillment'
+  name        String
+  description String?
+  steps       Json // [{ step: 1, name: 'reserve_inventory', event: 'sales_order.approved', compensation: 'release_reservation' }]
+  isActive    Boolean  @default(true)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([tenantId, key])
   @@map("saga_definitions")
 }
 
 model SagaInstance {
-  id              String   @id @default(cuid())
-  tenantId        String
+  id                String    @id @default(cuid())
+  tenantId          String
   sagaDefinitionKey String
-  correlationId   String   // links to the business entity (e.g., sales order ID)
-  status          String   @default("pending") // pending|running|completed|failed|compensating|compensated
-  currentStep     Int      @default(0)
-  totalSteps      Int      @default(0)
-  payload         Json     // saga context data
-  errorMessage     String?
-  startedAt       DateTime?
-  completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  correlationId     String // links to the business entity (e.g., sales order ID)
+  status            String    @default("pending") // pending|running|completed|failed|compensating|compensated
+  currentStep       Int       @default(0)
+  totalSteps        Int       @default(0)
+  payload           Json // saga context data
+  errorMessage      String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([tenantId, status])
   @@index([correlationId])
@@ -1325,57 +1325,57 @@ model SagaInstance {
 // ============================================================
 
 model WarrantyPolicy {
-  id              String   @id @default(cuid())
-  tenantId        String
-  productModelId  String?  // FK to ProductModel (loose — LAW-04)
-  policyName      String
-  warrantyType    String   @default("standard") // standard|extended|commercial|lifetime
-  warrantyMonths  Int      @default(12)
-  graceDays       Int      @default(0)
-  isRenewable     Boolean  @default(true)
-  coverageTerms   Json     // {parts: [...], labor: bool, ...}
-  exclusions      Json     @default("[]")
-  validFrom       DateTime @default(now())
-  validTo         DateTime?
-  isActive        Boolean  @default(true)
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id             String    @id @default(cuid())
+  tenantId       String
+  productModelId String? // FK to ProductModel (loose — LAW-04)
+  policyName     String
+  warrantyType   String    @default("standard") // standard|extended|commercial|lifetime
+  warrantyMonths Int       @default(12)
+  graceDays      Int       @default(0)
+  isRenewable    Boolean   @default(true)
+  coverageTerms  Json // {parts: [...], labor: bool, ...}
+  exclusions     Json      @default("[]")
+  validFrom      DateTime  @default(now())
+  validTo        DateTime?
+  isActive       Boolean   @default(true)
+  metadata       Json?
+  version        Int       @default(1) // LAW-07
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
-  cards           WarrantyCard[]
+  cards WarrantyCard[]
 
   @@unique([tenantId, productModelId, policyName])
   @@map("warranty_policies")
 }
 
 model WarrantyCard {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  warrantyNumber      String   // business code: WAR-1403-00001
-  productInstanceId   String   // FK to ProductInstance (loose — LAW-04)
-  customerPartyId     String   // FK to Party (loose — LAW-04)
-  warrantyPolicyId    String
-  warrantyPolicy      WarrantyPolicy @relation(fields: [warrantyPolicyId], references: [id])
-  salesOrderId        String?
-  shipmentId          String?
-  activationDate      DateTime?
-  startDate           DateTime?
-  endDate             DateTime?
-  graceEndDate        DateTime?
-  status              String   @default("pending") // pending|active|expired|voided|transferred
-  extendedMonths      Int      @default(0)
-  notes               String?
-  metadata            Json?
-  version             Int      @default(1) // LAW-07
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  id                String         @id @default(cuid())
+  tenantId          String
+  warrantyNumber    String // business code: WAR-1403-00001
+  productInstanceId String // FK to ProductInstance (loose — LAW-04)
+  customerPartyId   String // FK to Party (loose — LAW-04)
+  warrantyPolicyId  String
+  warrantyPolicy    WarrantyPolicy @relation(fields: [warrantyPolicyId], references: [id])
+  salesOrderId      String?
+  shipmentId        String?
+  activationDate    DateTime?
+  startDate         DateTime?
+  endDate           DateTime?
+  graceEndDate      DateTime?
+  status            String         @default("pending") // pending|active|expired|voided|transferred
+  extendedMonths    Int            @default(0)
+  notes             String?
+  metadata          Json?
+  version           Int            @default(1) // LAW-07
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
 
-  claims              WarrantyClaim[]
-  extensions          WarrantyExtension[]
-  transfers           WarrantyTransfer[]
+  claims     WarrantyClaim[]
+  extensions WarrantyExtension[]
+  transfers  WarrantyTransfer[]
 
   @@unique([tenantId, warrantyNumber])
   @@unique([tenantId, productInstanceId])
@@ -1385,46 +1385,46 @@ model WarrantyCard {
 }
 
 model WarrantyClaim {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  claimNumber         String   // business code: WCL-1403-00001
-  warrantyCardId      String
-  warrantyCard        WarrantyCard @relation(fields: [warrantyCardId], references: [id])
-  productInstanceId   String
-  customerPartyId     String
-  claimType           String   @default("defect") // defect|damage|malfunction|doa|other
-  claimDate           DateTime @default(now())
-  description         String
-  defectDescription   String?
-  status              String   @default("draft") // draft|submitted|inspection|approved|rejected|service_order|closed
+  id                String       @id @default(cuid())
+  tenantId          String
+  claimNumber       String // business code: WCL-1403-00001
+  warrantyCardId    String
+  warrantyCard      WarrantyCard @relation(fields: [warrantyCardId], references: [id])
+  productInstanceId String
+  customerPartyId   String
+  claimType         String       @default("defect") // defect|damage|malfunction|doa|other
+  claimDate         DateTime     @default(now())
+  description       String
+  defectDescription String?
+  status            String       @default("draft") // draft|submitted|inspection|approved|rejected|service_order|closed
   // LAW-29: Inspection fields
-  defectType          String?  // mechanical|electrical|cosmetic|software|other
-  defectSeverity      String?  // minor|moderate|major|critical
-  isCovered           Boolean?
-  inspectionNotes     String?
-  inspectedBy         String?
-  inspectedAt         DateTime?
-  isInspected         Boolean  @default(false)
+  defectType        String? // mechanical|electrical|cosmetic|software|other
+  defectSeverity    String? // minor|moderate|major|critical
+  isCovered         Boolean?
+  inspectionNotes   String?
+  inspectedBy       String?
+  inspectedAt       DateTime?
+  isInspected       Boolean      @default(false)
   // Approval
-  approvedAt          DateTime?
-  approvedBy          String?
-  approvalNotes       String?
-  rejectedAt          DateTime?
-  rejectedBy          String?
-  rejectionReason     String?
+  approvedAt        DateTime?
+  approvedBy        String?
+  approvalNotes     String?
+  rejectedAt        DateTime?
+  rejectedBy        String?
+  rejectionReason   String?
   // Service link
-  serviceOrderId      String?
+  serviceOrderId    String?
   // Resolution
-  resolvedAt          DateTime?
-  resolutionNotes     String?
-  estimatedCost       Float?
-  actualCost          Float?
-  currencyCode        String   @default("IRR")
-  metadata            Json?
-  version             Int      @default(1) // LAW-07
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  resolvedAt        DateTime?
+  resolutionNotes   String?
+  estimatedCost     Float?
+  actualCost        Float?
+  currencyCode      String       @default("IRR")
+  metadata          Json?
+  version           Int          @default(1) // LAW-07
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
 
   @@unique([tenantId, claimNumber])
   @@index([warrantyCardId])
@@ -1434,23 +1434,23 @@ model WarrantyClaim {
 }
 
 model WarrantyExtension {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
   tenantId        String
-  extensionNumber String   // business code: WEX-1403-00001
+  extensionNumber String // business code: WEX-1403-00001
   warrantyCardId  String
   warrantyCard    WarrantyCard @relation(fields: [warrantyCardId], references: [id])
-  extensionType   String   // free|paid|promotional
+  extensionType   String // free|paid|promotional
   extensionMonths Int
   newEndDate      DateTime
-  amountPaid      Float    @default(0)
-  currencyCode    String   @default("IRR")
+  amountPaid      Float        @default(0)
+  currencyCode    String       @default("IRR")
   paymentId       String?
-  activationDate  DateTime @default(now())
+  activationDate  DateTime     @default(now())
   notes           String?
   metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  version         Int          @default(1) // LAW-07
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
   deletedAt       DateTime?
 
   @@unique([tenantId, extensionNumber])
@@ -1459,26 +1459,26 @@ model WarrantyExtension {
 }
 
 model WarrantyTransfer {
-  id              String   @id @default(cuid())
-  tenantId        String
-  transferNumber  String   // business code: WTR-1403-00001
-  warrantyCardId  String
-  warrantyCard    WarrantyCard @relation(fields: [warrantyCardId], references: [id])
+  id                String       @id @default(cuid())
+  tenantId          String
+  transferNumber    String // business code: WTR-1403-00001
+  warrantyCardId    String
+  warrantyCard      WarrantyCard @relation(fields: [warrantyCardId], references: [id])
   productInstanceId String
-  fromPartyId     String
-  toPartyId       String
-  transferDate    DateTime @default(now())
-  reason          String?
-  transferFee     Float    @default(0)
-  currencyCode    String   @default("IRR")
-  approvalStatus  String   @default("pending") // pending|approved|rejected
-  approvedBy      String?
-  approvedAt      DateTime?
-  notes           String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  fromPartyId       String
+  toPartyId         String
+  transferDate      DateTime     @default(now())
+  reason            String?
+  transferFee       Float        @default(0)
+  currencyCode      String       @default("IRR")
+  approvalStatus    String       @default("pending") // pending|approved|rejected
+  approvedBy        String?
+  approvedAt        DateTime?
+  notes             String?
+  metadata          Json?
+  version           Int          @default(1) // LAW-07
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   @@unique([tenantId, transferNumber])
   @@index([warrantyCardId])
@@ -1494,30 +1494,30 @@ model WarrantyTransfer {
 // ============================================================
 
 model ServiceRequest {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   tenantId            String
-  requestNumber       String   // business code: SR-1403-00001
-  customerPartyId     String   // FK to Party (loose — LAW-04)
-  productInstanceId   String?  // FK to ProductInstance (loose — LAW-04)
+  requestNumber       String // business code: SR-1403-00001
+  customerPartyId     String // FK to Party (loose — LAW-04)
+  productInstanceId   String? // FK to ProductInstance (loose — LAW-04)
   warrantyCardId      String?
-  warrantyClaimId     String?  // LAW-33: linked from warranty claim event
+  warrantyClaimId     String? // LAW-33: linked from warranty claim event
   serviceCenterId     String?
-  serviceKind         String   @default("warranty") // warranty|out_of_warranty|paid|recall
-  priority            String   @default("normal") // low|normal|high|urgent|critical
-  status              String   @default("draft") // draft|submitted|validated|service_order|cancelled
+  serviceKind         String    @default("warranty") // warranty|out_of_warranty|paid|recall
+  priority            String    @default("normal") // low|normal|high|urgent|critical
+  status              String    @default("draft") // draft|submitted|validated|service_order|cancelled
   customerProblem     String
   customerDescription String?
-  deviceInfo          Json?    // {brand, model, serial, ...}
+  deviceInfo          Json? // {brand, model, serial, ...}
   reportedDefect      String?
   estimatedCompletion DateTime?
   actualCompletion    DateTime?
-  customerConsent     Boolean  @default(false)
-  serviceOrderId      String?  // link to ServiceOrder once created
+  customerConsent     Boolean   @default(false)
+  serviceOrderId      String? // link to ServiceOrder once created
   notes               String?
   metadata            Json?
-  version             Int      @default(1) // LAW-07
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  version             Int       @default(1) // LAW-07
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   deletedAt           DateTime?
 
   @@unique([tenantId, requestNumber])
@@ -1528,46 +1528,46 @@ model ServiceRequest {
 }
 
 model ServiceOrder {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  orderNumber         String   // business code: RO-1403-00001
-  serviceRequestId    String?
-  customerPartyId     String
-  productInstanceId   String?
-  warrantyCardId      String?
-  warrantyClaimId     String?
-  serviceCenterId     String?
+  id                   String    @id @default(cuid())
+  tenantId             String
+  orderNumber          String // business code: RO-1403-00001
+  serviceRequestId     String?
+  customerPartyId      String
+  productInstanceId    String?
+  warrantyCardId       String?
+  warrantyClaimId      String?
+  serviceCenterId      String?
   assignedTechnicianId String? // FK to Party (loose — technicians are parties)
-  serviceKind         String   @default("warranty")
-  status              String   @default("open") // open|diagnosis|waiting_parts|repair|qc|ready|delivered|closed|cancelled
-  createdDate         DateTime @default(now())
-  diagnosisDate       DateTime?
-  repairStartDate     DateTime?
-  repairCompleteDate  DateTime?
-  qcDate              DateTime?
-  readyDate           DateTime?
-  deliveredDate       DateTime?
-  closedDate          DateTime?
-  laborCost           Float    @default(0)
-  partsCost           Float    @default(0)
-  otherCost           Float    @default(0)
-  discountAmount      Float    @default(0)
-  taxAmount           Float    @default(0)
-  totalCost           Float    @default(0)
-  paidAmount          Float    @default(0)
-  currencyCode        String   @default("IRR")
-  notes               String?
-  metadata            Json?
-  version             Int      @default(1) // LAW-07
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  serviceKind          String    @default("warranty")
+  status               String    @default("open") // open|diagnosis|waiting_parts|repair|qc|ready|delivered|closed|cancelled
+  createdDate          DateTime  @default(now())
+  diagnosisDate        DateTime?
+  repairStartDate      DateTime?
+  repairCompleteDate   DateTime?
+  qcDate               DateTime?
+  readyDate            DateTime?
+  deliveredDate        DateTime?
+  closedDate           DateTime?
+  laborCost            Float     @default(0)
+  partsCost            Float     @default(0)
+  otherCost            Float     @default(0)
+  discountAmount       Float     @default(0)
+  taxAmount            Float     @default(0)
+  totalCost            Float     @default(0)
+  paidAmount           Float     @default(0)
+  currencyCode         String    @default("IRR")
+  notes                String?
+  metadata             Json?
+  version              Int       @default(1) // LAW-07
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
 
-  lines               ServiceOrderLine[]
-  parts               ServiceOrderPart[]
-  laborRecords        ServiceOrderLabor[]
-  diagnoses           ServiceDiagnosis[]
-  qcChecks            ServiceQualityCheck[]
+  lines        ServiceOrderLine[]
+  parts        ServiceOrderPart[]
+  laborRecords ServiceOrderLabor[]
+  diagnoses    ServiceDiagnosis[]
+  qcChecks     ServiceQualityCheck[]
 
   @@unique([tenantId, orderNumber])
   @@index([serviceRequestId])
@@ -1578,63 +1578,63 @@ model ServiceOrder {
 }
 
 model ServiceOrderLine {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
   tenantId        String
   serviceOrderId  String
   serviceOrder    ServiceOrder @relation(fields: [serviceOrderId], references: [id])
   lineNumber      Int
   taskDescription String
-  taskType        String?  // diagnosis|repair|replacement|testing
+  taskType        String? // diagnosis|repair|replacement|testing
   estimatedHours  Float?
   actualHours     Float?
   completedAt     DateTime?
-  isCompleted     Boolean  @default(false)
+  isCompleted     Boolean      @default(false)
   notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@unique([serviceOrderId, lineNumber])
   @@map("service_order_lines")
 }
 
 model ServiceDiagnosis {
-  id              String   @id @default(cuid())
-  tenantId        String
-  serviceOrderId  String
-  serviceOrder    ServiceOrder @relation(fields: [serviceOrderId], references: [id])
-  technicianPartyId String
-  diagnosisDate   DateTime @default(now())
-  symptom         String
-  rootCause       String?
-  recommendedAction String?
-  estimatedHours  Float?
+  id                 String       @id @default(cuid())
+  tenantId           String
+  serviceOrderId     String
+  serviceOrder       ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  technicianPartyId  String
+  diagnosisDate      DateTime     @default(now())
+  symptom            String
+  rootCause          String?
+  recommendedAction  String?
+  estimatedHours     Float?
   estimatedPartsCost Float?
-  confidenceLevel String?  // low|medium|high
-  notes           String?
-  createdAt       DateTime @default(now())
+  confidenceLevel    String? // low|medium|high
+  notes              String?
+  createdAt          DateTime     @default(now())
 
   @@index([serviceOrderId])
   @@map("service_diagnoses")
 }
 
 model ServiceOrderPart {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  serviceOrderId      String
-  serviceOrder        ServiceOrder @relation(fields: [serviceOrderId], references: [id])
-  productId           String   // FK to Product (loose — LAW-04)
-  productInstanceId   String?  // for serialized parts
-  fromWarehouseId     String?
-  fromLocationId      String?
-  quantityUsed        Float    @default(0)
-  unitCost            Float    @default(0)
-  totalCost           Float    @default(0)
-  isWarrantyCovered   Boolean  @default(false)
-  isReturnedPart      Boolean  @default(false)
+  id                    String       @id @default(cuid())
+  tenantId              String
+  serviceOrderId        String
+  serviceOrder          ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  productId             String // FK to Product (loose — LAW-04)
+  productInstanceId     String? // for serialized parts
+  fromWarehouseId       String?
+  fromLocationId        String?
+  quantityUsed          Float        @default(0)
+  unitCost              Float        @default(0)
+  totalCost             Float        @default(0)
+  isWarrantyCovered     Boolean      @default(false)
+  isReturnedPart        Boolean      @default(false)
   returnedToWarehouseId String?
-  usedAt              DateTime @default(now())
-  notes               String?
-  createdAt           DateTime @default(now())
+  usedAt                DateTime     @default(now())
+  notes                 String?
+  createdAt             DateTime     @default(now())
 
   @@index([serviceOrderId])
   @@index([productId])
@@ -1642,20 +1642,20 @@ model ServiceOrderPart {
 }
 
 model ServiceOrderLabor {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  serviceOrderId      String
-  serviceOrder        ServiceOrder @relation(fields: [serviceOrderId], references: [id])
-  technicianPartyId   String
-  laborType           String   // diagnosis|repair|testing|other
-  hours               Float
-  hourlyRate          Float
-  totalCost           Float
-  isWarrantyCovered   Boolean  @default(false)
-  startedAt           DateTime?
-  endedAt             DateTime?
-  notes               String?
-  createdAt           DateTime @default(now())
+  id                String       @id @default(cuid())
+  tenantId          String
+  serviceOrderId    String
+  serviceOrder      ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  technicianPartyId String
+  laborType         String // diagnosis|repair|testing|other
+  hours             Float
+  hourlyRate        Float
+  totalCost         Float
+  isWarrantyCovered Boolean      @default(false)
+  startedAt         DateTime?
+  endedAt           DateTime?
+  notes             String?
+  createdAt         DateTime     @default(now())
 
   @@index([serviceOrderId])
   @@index([technicianPartyId])
@@ -1663,24 +1663,24 @@ model ServiceOrderLabor {
 }
 
 model ServiceQualityCheck {
-  id              String   @id @default(cuid())
-  tenantId        String
-  qcNumber        String   // business code: QC-1403-00001
-  serviceOrderId  String
-  serviceOrder    ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  id               String       @id @default(cuid())
+  tenantId         String
+  qcNumber         String // business code: QC-1403-00001
+  serviceOrderId   String
+  serviceOrder     ServiceOrder @relation(fields: [serviceOrderId], references: [id])
   inspectorPartyId String?
-  inspectionDate  DateTime @default(now())
-  result          String   // pass|fail|conditional
-  checklist       Json     // {items: [{name, passed, notes}]}
-  defectsFound    String?
-  reworkRequired  Boolean  @default(false)
-  reworkNotes     String?
-  approvedAt      DateTime?
-  approvedBy      String?
-  notes           String?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  inspectionDate   DateTime     @default(now())
+  result           String // pass|fail|conditional
+  checklist        Json // {items: [{name, passed, notes}]}
+  defectsFound     String?
+  reworkRequired   Boolean      @default(false)
+  reworkNotes      String?
+  approvedAt       DateTime?
+  approvedBy       String?
+  notes            String?
+  version          Int          @default(1) // LAW-07
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   @@unique([tenantId, qcNumber])
   @@index([serviceOrderId])
@@ -1688,21 +1688,21 @@ model ServiceQualityCheck {
 }
 
 model TechnicianAssignment {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  technicianPartyId   String
-  serviceOrderId      String?
-  serviceCenterId     String?
-  assignmentType      String   @default("primary") // primary|secondary|supervisor
-  status              String   @default("active") // active|completed|reassigned|cancelled
-  assignedAt          DateTime @default(now())
-  assignedBy          String?
-  startTime           DateTime?
-  endTime             DateTime?
-  notes               String?
-  metadata            Json?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String    @id @default(cuid())
+  tenantId          String
+  technicianPartyId String
+  serviceOrderId    String?
+  serviceCenterId   String?
+  assignmentType    String    @default("primary") // primary|secondary|supervisor
+  status            String    @default("active") // active|completed|reassigned|cancelled
+  assignedAt        DateTime  @default(now())
+  assignedBy        String?
+  startTime         DateTime?
+  endTime           DateTime?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([technicianPartyId, status])
   @@index([serviceOrderId])
@@ -1718,29 +1718,29 @@ model TechnicianAssignment {
 // ============================================================
 
 model ChartOfAccount {
-  id              String   @id @default(cuid())
-  tenantId        String
-  accountCode     String   // e.g., '1000', '1100', '4000'
-  accountName     String
-  accountNameEn   String?
-  accountType     String   // asset|liability|equity|revenue|expense
-  parentAccountId String?
-  parent          ChartOfAccount? @relation("AccountTree", fields: [parentAccountId], references: [id])
-  children        ChartOfAccount[] @relation("AccountTree")
-  level           Int      @default(0)
-  isPostable      Boolean  @default(true) // leaf vs header
-  isControlAccount Boolean @default(false) // AR, AP control accounts
-  isActive        Boolean  @default(true)
-  openingBalance  Float    @default(0)
-  currencyCode    String   @default("IRR")
-  description     String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id               String           @id @default(cuid())
+  tenantId         String
+  accountCode      String // e.g., '1000', '1100', '4000'
+  accountName      String
+  accountNameEn    String?
+  accountType      String // asset|liability|equity|revenue|expense
+  parentAccountId  String?
+  parent           ChartOfAccount?  @relation("AccountTree", fields: [parentAccountId], references: [id])
+  children         ChartOfAccount[] @relation("AccountTree")
+  level            Int              @default(0)
+  isPostable       Boolean          @default(true) // leaf vs header
+  isControlAccount Boolean          @default(false) // AR, AP control accounts
+  isActive         Boolean          @default(true)
+  openingBalance   Float            @default(0)
+  currencyCode     String           @default("IRR")
+  description      String?
+  metadata         Json?
+  version          Int              @default(1) // LAW-07
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
 
-  journalLines    JournalEntryLine[]
+  journalLines JournalEntryLine[]
 
   @@unique([tenantId, accountCode])
   @@index([parentAccountId])
@@ -1748,115 +1748,115 @@ model ChartOfAccount {
 }
 
 model FiscalYear {
-  id          String   @id @default(cuid())
-  tenantId    String
-  yearCode    String   // e.g., '1403', '1404'
-  name        String
-  startDate   DateTime
-  endDate     DateTime
-  status      String   @default("open") // open|closed
-  closedAt    DateTime?
-  closedBy    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String    @id @default(cuid())
+  tenantId  String
+  yearCode  String // e.g., '1403', '1404'
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  status    String    @default("open") // open|closed
+  closedAt  DateTime?
+  closedBy  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  periods     FiscalPeriod[]
+  periods FiscalPeriod[]
 
   @@unique([tenantId, yearCode])
   @@map("fiscal_years")
 }
 
 model FiscalPeriod {
-  id          String   @id @default(cuid())
-  tenantId    String
+  id           String     @id @default(cuid())
+  tenantId     String
   fiscalYearId String
-  fiscalYear  FiscalYear @relation(fields: [fiscalYearId], references: [id])
-  periodCode  String   // e.g., '1403-Q1', '1403-01'
-  name        String
-  periodType  String   // month|quarter|year
-  startDate   DateTime
-  endDate     DateTime
-  status      String   @default("open") // open|temporarily_closed|closed
-  closedAt    DateTime?
-  closedBy    String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  fiscalYear   FiscalYear @relation(fields: [fiscalYearId], references: [id])
+  periodCode   String // e.g., '1403-Q1', '1403-01'
+  name         String
+  periodType   String // month|quarter|year
+  startDate    DateTime
+  endDate      DateTime
+  status       String     @default("open") // open|temporarily_closed|closed
+  closedAt     DateTime?
+  closedBy     String?
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@unique([tenantId, periodCode])
   @@map("fiscal_periods")
 }
 
 model CostCenter {
-  id              String   @id @default(cuid())
-  tenantId        String
-  code            String   // e.g., 'CC-001'
-  name            String
-  parentId        String?
-  parent          CostCenter? @relation("CostCenterTree", fields: [parentId], references: [id])
-  children        CostCenter[] @relation("CostCenterTree")
-  level           Int      @default(0)
-  isActive        Boolean  @default(true)
-  description     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id          String       @id @default(cuid())
+  tenantId    String
+  code        String // e.g., 'CC-001'
+  name        String
+  parentId    String?
+  parent      CostCenter?  @relation("CostCenterTree", fields: [parentId], references: [id])
+  children    CostCenter[] @relation("CostCenterTree")
+  level       Int          @default(0)
+  isActive    Boolean      @default(true)
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
 
   @@unique([tenantId, code])
   @@map("cost_centers")
 }
 
 model TaxCode {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   tenantId        String
-  code            String   // e.g., 'VAT09', 'EXEMPT'
-  taxType         String   // vat|sales_tax|withholding|exempt
+  code            String // e.g., 'VAT09', 'EXEMPT'
+  taxType         String // vat|sales_tax|withholding|exempt
   name            String
-  ratePercent     Float    // 9.00, 0.00
-  inputAccountId  String?  // recoverable input tax account (for VAT)
-  outputAccountId String?  // output tax payable account
-  isRecoverable   Boolean  @default(false)
-  isDefault       Boolean  @default(false)
-  isActive        Boolean  @default(true)
+  ratePercent     Float // 9.00, 0.00
+  inputAccountId  String? // recoverable input tax account (for VAT)
+  outputAccountId String? // output tax payable account
+  isRecoverable   Boolean   @default(false)
+  isDefault       Boolean   @default(false)
+  isActive        Boolean   @default(true)
   description     String?
-  validFrom       DateTime @default(now())
+  validFrom       DateTime  @default(now())
   validTo         DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  rules           TaxRule[]      @relation("TaxCodeRules")
-  calculations    TaxCalculation[] @relation("TaxCodeCalculations")
+  rules        TaxRule[]        @relation("TaxCodeRules")
+  calculations TaxCalculation[] @relation("TaxCodeCalculations")
 
   @@unique([tenantId, code])
   @@map("tax_codes")
 }
 
 model JournalEntry {
-  id              String   @id @default(cuid())
-  tenantId        String
-  entryNumber     String   // business code: JE-1403-00001
-  entryDate       DateTime
-  fiscalPeriodId  String?
-  description     String
-  sourceType      String?  // sales_invoice|payment|credit_note|refund|inventory_adjustment|service_charge|manual
-  sourceId        String?  // ID of the source entity (event aggregateId)
-  status          String   @default("draft") // draft|posted|reversed
-  totalDebit      Float    @default(0)
-  totalCredit     Float    @default(0)
+  id             String    @id @default(cuid())
+  tenantId       String
+  entryNumber    String // business code: JE-1403-00001
+  entryDate      DateTime
+  fiscalPeriodId String?
+  description    String
+  sourceType     String? // sales_invoice|payment|credit_note|refund|inventory_adjustment|service_charge|manual
+  sourceId       String? // ID of the source entity (event aggregateId)
+  status         String    @default("draft") // draft|posted|reversed
+  totalDebit     Float     @default(0)
+  totalCredit    Float     @default(0)
   // isBalanced = (totalDebit === totalCredit) — validated at application level (LAW-35)
-  reversedById    String?  // reference to reversal JE
-  reversedAt      DateTime?
-  reversalReason  String?
-  postedAt        DateTime?
-  postedBy        String?
-  notes           String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  reversedById   String? // reference to reversal JE
+  reversedAt     DateTime?
+  reversalReason String?
+  postedAt       DateTime?
+  postedBy       String?
+  notes          String?
+  metadata       Json?
+  version        Int       @default(1) // LAW-07
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
-  lines           JournalEntryLine[]
+  lines JournalEntryLine[]
 
   @@unique([tenantId, entryNumber])
   @@index([tenantId, entryDate])
@@ -1866,22 +1866,22 @@ model JournalEntry {
 }
 
 model JournalEntryLine {
-  id              String   @id @default(cuid())
-  tenantId        String
-  journalEntryId  String
-  journalEntry    JournalEntry @relation(fields: [journalEntryId], references: [id])
-  lineNumber      Int
-  accountId       String
-  account         ChartOfAccount @relation(fields: [accountId], references: [id])
-  costCenterId    String?
-  partyId         String?  // sub-ledger reference (customer/supplier)
-  debitAmount     Float    @default(0)
-  creditAmount    Float    @default(0)
-  description     String?
-  referenceType   String?
-  referenceId     String?
-  metadata        Json?
-  createdAt       DateTime @default(now())
+  id             String         @id @default(cuid())
+  tenantId       String
+  journalEntryId String
+  journalEntry   JournalEntry   @relation(fields: [journalEntryId], references: [id])
+  lineNumber     Int
+  accountId      String
+  account        ChartOfAccount @relation(fields: [accountId], references: [id])
+  costCenterId   String?
+  partyId        String? // sub-ledger reference (customer/supplier)
+  debitAmount    Float          @default(0)
+  creditAmount   Float          @default(0)
+  description    String?
+  referenceType  String?
+  referenceId    String?
+  metadata       Json?
+  createdAt      DateTime       @default(now())
 
   @@unique([journalEntryId, lineNumber])
   @@index([accountId])
@@ -1901,11 +1901,11 @@ model ARTransaction {
   id              String   @id @default(cuid())
   tenantId        String
   customerPartyId String
-  transactionType String   // invoice|payment|credit_note|refund|opening
-  referenceType   String   // sales_invoice|payment|credit_note|refund
+  transactionType String // invoice|payment|credit_note|refund|opening
+  referenceType   String // sales_invoice|payment|credit_note|refund
   referenceId     String
   entryDate       DateTime @default(now())
-  amount          Float    // positive = debit (invoice), negative = credit (payment)
+  amount          Float // positive = debit (invoice), negative = credit (payment)
   openAmount      Float    @default(0) // remaining unallocated (derived but cached for query perf)
   status          String   @default("open") // open|partially_allocated|fully_allocated
   description     String?
@@ -1914,7 +1914,7 @@ model ARTransaction {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  allocations     ARAllocation[] @relation("DebitAllocations")
+  allocations       ARAllocation[] @relation("DebitAllocations")
   creditAllocations ARAllocation[] @relation("CreditAllocations")
 
   @@index([tenantId, customerPartyId, entryDate])
@@ -1924,19 +1924,19 @@ model ARTransaction {
 }
 
 model ARAllocation {
-  id                String   @id @default(cuid())
-  tenantId          String
-  customerPartyId   String
-  debitTransactionId  String  // ARTransaction (invoice/charge)
+  id                  String        @id @default(cuid())
+  tenantId            String
+  customerPartyId     String
+  debitTransactionId  String // ARTransaction (invoice/charge)
   debitTransaction    ARTransaction @relation("DebitAllocations", fields: [debitTransactionId], references: [id])
-  creditTransactionId String  // ARTransaction (payment/credit)
+  creditTransactionId String // ARTransaction (payment/credit)
   creditTransaction   ARTransaction @relation("CreditAllocations", fields: [creditTransactionId], references: [id])
-  allocatedAmount   Float    // positive = allocate, negative = unallocate (reversal — LAW-41)
-  allocationDate    DateTime @default(now())
-  allocatedBy       String?
-  reversalOfId      String?  // if this is a reversal, references original allocation (LAW-41)
-  notes             String?
-  createdAt         DateTime @default(now())
+  allocatedAmount     Float // positive = allocate, negative = unallocate (reversal — LAW-41)
+  allocationDate      DateTime      @default(now())
+  allocatedBy         String?
+  reversalOfId        String? // if this is a reversal, references original allocation (LAW-41)
+  notes               String?
+  createdAt           DateTime      @default(now())
 
   @@index([debitTransactionId])
   @@index([creditTransactionId])
@@ -1947,11 +1947,11 @@ model APTransaction {
   id              String   @id @default(cuid())
   tenantId        String
   vendorPartyId   String
-  transactionType String   // vendor_bill|payment|credit|opening
-  referenceType   String   // ap_invoice|payment|credit
+  transactionType String // vendor_bill|payment|credit|opening
+  referenceType   String // ap_invoice|payment|credit
   referenceId     String
   entryDate       DateTime @default(now())
-  amount          Float    // positive = credit (bill owed), negative = debit (payment)
+  amount          Float // positive = credit (bill owed), negative = debit (payment)
   openAmount      Float    @default(0)
   status          String   @default("open") // open|partially_allocated|fully_allocated
   description     String?
@@ -1960,7 +1960,7 @@ model APTransaction {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  allocations     APAllocation[] @relation("DebitAllocations")
+  allocations       APAllocation[] @relation("DebitAllocations")
   creditAllocations APAllocation[] @relation("CreditAllocations")
 
   @@index([tenantId, vendorPartyId, entryDate])
@@ -1970,19 +1970,19 @@ model APTransaction {
 }
 
 model APAllocation {
-  id                String   @id @default(cuid())
-  tenantId          String
-  vendorPartyId     String
-  debitTransactionId  String  // APTransaction (payment)
+  id                  String        @id @default(cuid())
+  tenantId            String
+  vendorPartyId       String
+  debitTransactionId  String // APTransaction (payment)
   debitTransaction    APTransaction @relation("DebitAllocations", fields: [debitTransactionId], references: [id])
-  creditTransactionId String  // APTransaction (vendor bill)
+  creditTransactionId String // APTransaction (vendor bill)
   creditTransaction   APTransaction @relation("CreditAllocations", fields: [creditTransactionId], references: [id])
-  allocatedAmount   Float    // positive = allocate, negative = unallocate (LAW-41)
-  allocationDate    DateTime @default(now())
-  allocatedBy       String?
-  reversalOfId      String?
-  notes             String?
-  createdAt         DateTime @default(now())
+  allocatedAmount     Float // positive = allocate, negative = unallocate (LAW-41)
+  allocationDate      DateTime      @default(now())
+  allocatedBy         String?
+  reversalOfId        String?
+  notes               String?
+  createdAt           DateTime      @default(now())
 
   @@index([debitTransactionId])
   @@index([creditTransactionId])
@@ -1998,29 +1998,29 @@ model APAllocation {
 // ============================================================
 
 model TaxRule {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   tenantId          String
   taxCodeId         String
-  taxCode           TaxCode  @relation("TaxCodeRules", fields: [taxCodeId], references: [id])
+  taxCode           TaxCode   @relation("TaxCodeRules", fields: [taxCodeId], references: [id])
   name              String
-  productCategoryId String?  // FK to ProductCategory (loose — LAW-04)
-  customerGroupId   String?  // optional: customer group scope
-  regionId          String?  // optional: geographic region
-  effectiveFrom     DateTime @default(now())
-  effectiveTo       DateTime?  // null = currently active (LAW-45)
-  priority          Int      @default(100) // higher = more specific, evaluated first
-  formula           String   @default("rate * taxableAmount") // calculation formula
-  rateOverride      Float?   // override the TaxCode.rate if set
-  isReverseCharge   Boolean  @default(false)
-  isActive          Boolean  @default(true)
-  version           Int      @default(1) // LAW-45: versioned
+  productCategoryId String? // FK to ProductCategory (loose — LAW-04)
+  customerGroupId   String? // optional: customer group scope
+  regionId          String? // optional: geographic region
+  effectiveFrom     DateTime  @default(now())
+  effectiveTo       DateTime? // null = currently active (LAW-45)
+  priority          Int       @default(100) // higher = more specific, evaluated first
+  formula           String    @default("rate * taxableAmount") // calculation formula
+  rateOverride      Float? // override the TaxCode.rate if set
+  isReverseCharge   Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  version           Int       @default(1) // LAW-45: versioned
   description       String?
   metadata          Json?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
-  calculations      TaxCalculation[]
+  calculations TaxCalculation[]
 
   @@index([taxCodeId, effectiveFrom, effectiveTo])
   @@index([tenantId, isActive])
@@ -2030,21 +2030,21 @@ model TaxRule {
 model TaxCalculation {
   id              String   @id @default(cuid())
   tenantId        String
-  documentType    String   // sales_invoice|purchase_invoice|credit_note|payment
+  documentType    String // sales_invoice|purchase_invoice|credit_note|payment
   documentId      String
   taxCodeId       String
   taxCode         TaxCode  @relation("TaxCodeCalculations", fields: [taxCodeId], references: [id])
   taxRuleId       String
   taxRule         TaxRule  @relation(fields: [taxRuleId], references: [id])
   taxableAmount   Float
-  taxRate         Float    // snapshot of effective rate at calculation time
+  taxRate         Float // snapshot of effective rate at calculation time
   taxAmount       Float
   currencyCode    String   @default("IRR")
   calculationDate DateTime @default(now())
-  snapshot        Json     // full context snapshot (for audit — LAW-43)
+  snapshot        Json // full context snapshot (for audit — LAW-43)
   createdAt       DateTime @default(now())
 
-  postings        TaxPosting[]
+  postings TaxPosting[]
 
   @@index([documentType, documentId])
   @@index([taxCodeId])
@@ -2052,13 +2052,13 @@ model TaxCalculation {
 }
 
 model TaxPosting {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  journalEntryId      String   // FK to JournalEntry (loose — within Financial)
-  taxCalculationId    String
-  taxCalculation      TaxCalculation @relation(fields: [taxCalculationId], references: [id])
-  postedAt            DateTime @default(now())
-  createdAt           DateTime @default(now())
+  id               String         @id @default(cuid())
+  tenantId         String
+  journalEntryId   String // FK to JournalEntry (loose — within Financial)
+  taxCalculationId String
+  taxCalculation   TaxCalculation @relation(fields: [taxCalculationId], references: [id])
+  postedAt         DateTime       @default(now())
+  createdAt        DateTime       @default(now())
 
   @@index([taxCalculationId])
   @@map("tax_postings")
@@ -2071,23 +2071,23 @@ model TaxPosting {
 // ============================================================
 
 model WorkflowDefinition {
-  id              String   @id @default(cuid())
-  tenantId        String
-  key             String   // e.g., 'sales_order_approval', 'warranty_claim'
-  name            String
-  entityType      String   // what entity this WF runs on (sales_order, warranty_claim, etc.)
-  version         Int      @default(1)
-  isActive        Boolean  @default(true)
-  publishedAt     DateTime?
-  description     String?
-  states          Json     // [{ key, name, isInitial, isFinal, metadata }]
-  transitions     Json     // [{ key, fromState, toState, triggerType, guardRuleSetId, requiredPermission, metadata }]
-  metadata        Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id          String    @id @default(cuid())
+  tenantId    String
+  key         String // e.g., 'sales_order_approval', 'warranty_claim'
+  name        String
+  entityType  String // what entity this WF runs on (sales_order, warranty_claim, etc.)
+  version     Int       @default(1)
+  isActive    Boolean   @default(true)
+  publishedAt DateTime?
+  description String?
+  states      Json // [{ key, name, isInitial, isFinal, metadata }]
+  transitions Json // [{ key, fromState, toState, triggerType, guardRuleSetId, requiredPermission, metadata }]
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
-  instances       WorkflowInstance[]
+  instances WorkflowInstance[]
 
   @@unique([tenantId, key, version])
   @@index([tenantId, key, isActive])
@@ -2095,28 +2095,28 @@ model WorkflowDefinition {
 }
 
 model WorkflowInstance {
-  id              String   @id @default(cuid())
-  tenantId        String
-  definitionId    String
-  definition      WorkflowDefinition @relation(fields: [definitionId], references: [id])
-  definitionKey   String
+  id                String             @id @default(cuid())
+  tenantId          String
+  definitionId      String
+  definition        WorkflowDefinition @relation(fields: [definitionId], references: [id])
+  definitionKey     String
   definitionVersion Int
-  entityType      String
-  entityId        String
-  currentStateKey String
-  status          String   @default("running") // running|completed|cancelled
-  startedBy       String?
-  startedAt       DateTime @default(now())
-  completedAt     DateTime?
-  cancelledAt     DateTime?
-  cancelledBy     String?
-  cancelReason    String?
-  metadata        Json?
-  version         Int      @default(1) // LAW-07: Optimistic Lock
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  entityType        String
+  entityId          String
+  currentStateKey   String
+  status            String             @default("running") // running|completed|cancelled
+  startedBy         String?
+  startedAt         DateTime           @default(now())
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  cancelledBy       String?
+  cancelReason      String?
+  metadata          Json?
+  version           Int                @default(1) // LAW-07: Optimistic Lock
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
-  history         WorkflowHistory[]
+  history WorkflowHistory[]
 
   @@index([entityType, entityId])
   @@index([tenantId, status])
@@ -2124,17 +2124,17 @@ model WorkflowInstance {
 }
 
 model WorkflowHistory {
-  id              String   @id @default(cuid())
-  tenantId        String
-  instanceId      String
-  instance        WorkflowInstance @relation(fields: [instanceId], references: [id])
-  fromState       String?
-  toState         String
-  transitionKey   String?
-  changedBy       String?
-  changedAt       DateTime @default(now())
-  reason          String?
-  metadata        Json?
+  id            String           @id @default(cuid())
+  tenantId      String
+  instanceId    String
+  instance      WorkflowInstance @relation(fields: [instanceId], references: [id])
+  fromState     String?
+  toState       String
+  transitionKey String?
+  changedBy     String?
+  changedAt     DateTime         @default(now())
+  reason        String?
+  metadata      Json?
 
   @@index([instanceId, changedAt])
   @@map("workflow_history")
@@ -2149,24 +2149,24 @@ model WorkflowHistory {
 // ============================================================
 
 model RuleSet {
-  id              String   @id @default(cuid())
-  tenantId        String
-  code            String   // e.g., 'invoice_approval', 'warranty_validation'
-  name            String
-  context         String   // what domain context this applies to (invoice, warranty, service, etc.)
-  status          String   @default("draft") // draft|published|disabled
-  version         Int      @default(1) // LAW-50
-  priority        Int      @default(100) // higher = evaluated first
-  effectiveFrom   DateTime @default(now())
-  effectiveTo     DateTime?  // null = currently active
-  publishedAt     DateTime?
-  description     String?
-  metadata        Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id            String    @id @default(cuid())
+  tenantId      String
+  code          String // e.g., 'invoice_approval', 'warranty_validation'
+  name          String
+  context       String // what domain context this applies to (invoice, warranty, service, etc.)
+  status        String    @default("draft") // draft|published|disabled
+  version       Int       @default(1) // LAW-50
+  priority      Int       @default(100) // higher = evaluated first
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime? // null = currently active
+  publishedAt   DateTime?
+  description   String?
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
-  rules           RuleDefinition[]
+  rules RuleDefinition[]
 
   @@unique([tenantId, code, version])
   @@index([tenantId, context, status])
@@ -2174,44 +2174,44 @@ model RuleSet {
 }
 
 model RuleDefinition {
-  id              String   @id @default(cuid())
-  tenantId        String
-  ruleSetId       String
-  ruleSet         RuleSet  @relation(fields: [ruleSetId], references: [id])
-  name            String
-  description     String?
-  conditionDsl    Json     // { all: [{ field, operator, value }] } or { any: [...] } or { field, operator, value }
-  actionDsl       Json     // { type: "requireApproval", role: "finance_manager" } or { type: "allow" } or { type: "notify", template: "..." }
-  priority        Int      @default(100) // within the ruleset
-  enabled         Boolean  @default(true)
-  version         Int      @default(1) // LAW-50
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id           String    @id @default(cuid())
+  tenantId     String
+  ruleSetId    String
+  ruleSet      RuleSet   @relation(fields: [ruleSetId], references: [id])
+  name         String
+  description  String?
+  conditionDsl Json // { all: [{ field, operator, value }] } or { any: [...] } or { field, operator, value }
+  actionDsl    Json // { type: "requireApproval", role: "finance_manager" } or { type: "allow" } or { type: "notify", template: "..." }
+  priority     Int       @default(100) // within the ruleset
+  enabled      Boolean   @default(true)
+  version      Int       @default(1) // LAW-50
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
-  executions      RuleExecution[]
+  executions RuleExecution[]
 
   @@index([ruleSetId, priority])
   @@map("rule_definitions")
 }
 
 model RuleExecution {
-  id                  String   @id @default(cuid())
-  tenantId            String
-  ruleDefinitionId    String?
-  ruleDefinition      RuleDefinition? @relation(fields: [ruleDefinitionId], references: [id])
-  ruleSetCode         String   // snapshot of ruleset code at execution time
-  ruleSetVersion      Int      // snapshot of ruleset version (LAW-53: deterministic)
-  workflowInstanceId  String?  // if triggered by workflow
-  eventType           String   // event that triggered evaluation
-  inputSnapshot       Json     // full input payload (LAW-54: auditable)
-  result              String   // allow|deny|requireApproval|notify|escalate
-  actions             Json     // array of action DSLs
-  matchedRules        Json     // array of matched rule names
-  executionTime       Int      // duration in milliseconds
-  createdAt           DateTime @default(now())
+  id                 String          @id @default(cuid())
+  tenantId           String
+  ruleDefinitionId   String?
+  ruleDefinition     RuleDefinition? @relation(fields: [ruleDefinitionId], references: [id])
+  ruleSetCode        String // snapshot of ruleset code at execution time
+  ruleSetVersion     Int // snapshot of ruleset version (LAW-53: deterministic)
+  workflowInstanceId String? // if triggered by workflow
+  eventType          String // event that triggered evaluation
+  inputSnapshot      Json // full input payload (LAW-54: auditable)
+  result             String // allow|deny|requireApproval|notify|escalate
+  actions            Json // array of action DSLs
+  matchedRules       Json // array of matched rule names
+  executionTime      Int // duration in milliseconds
+  createdAt          DateTime        @default(now())
 
-  auditSteps          RuleAuditStep[]
+  auditSteps RuleAuditStep[]
 
   @@index([ruleSetCode, createdAt])
   @@index([workflowInstanceId])
@@ -2219,17 +2219,152 @@ model RuleExecution {
 }
 
 model RuleAuditStep {
-  id              String   @id @default(cuid())
-  executionId     String
-  execution       RuleExecution @relation(fields: [executionId], references: [id])
-  stepNumber      Int
-  ruleName        String?
-  expression      String   // stringified condition evaluated
-  result          String   // true|false|error
-  duration        Int      // ms
-  notes           String?
-  createdAt       DateTime @default(now())
+  id          String        @id @default(cuid())
+  executionId String
+  execution   RuleExecution @relation(fields: [executionId], references: [id])
+  stepNumber  Int
+  ruleName    String?
+  expression  String // stringified condition evaluated
+  result      String // true|false|error
+  duration    Int // ms
+  notes       String?
+  createdAt   DateTime      @default(now())
 
   @@index([executionId, stepNumber])
   @@map("rule_audit_steps")
+}
+
+// ============================================================
+// SPRINT 7.3 — NOTIFICATION CENTER
+// ============================================================
+// LAW-55: Notifications Must Be Template-Based (versioned, language-aware)
+// LAW-56: Notification Delivery Must Be Channel-Agnostic
+// LAW-57: Notification Delivery Must Be Retryable And Idempotent
+// ============================================================
+
+model NotificationTemplate {
+  id              String    @id @default(cuid())
+  tenantId        String
+  code            String // e.g. 'invoice.issued', 'payment.received', 'service_order.ready'
+  name            String
+  version         Int       @default(1) // LAW-55: versioned
+  language        String    @default("fa") // fa | en | ar | ku
+  channel         String // email | sms | whatsapp | push | inapp
+  subjectTemplate String? // null for sms/whatsapp/push/inapp (no subject)
+  bodyTemplate    String // {{variables}}, {{#if}}, {{#each}}
+  variablesSchema Json? // [{ name, type, required, description }]
+  status          String    @default("draft") // draft | published | disabled
+  effectiveFrom   DateTime  @default(now())
+  effectiveTo     DateTime?
+  publishedAt     DateTime?
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  notifications Notification[]
+
+  @@unique([tenantId, code, version, language, channel])
+  @@index([tenantId, code, status])
+  @@index([tenantId, channel, status])
+  @@map("notification_templates")
+}
+
+model Notification {
+  id               String               @id @default(cuid())
+  tenantId         String
+  templateId       String
+  template         NotificationTemplate @relation(fields: [templateId], references: [id])
+  templateCode     String // snapshot at creation time (audit)
+  templateVersion  Int // snapshot
+  language         String // snapshot
+  recipientId      String? // userId / partyId (null if external address only)
+  recipientName    String?
+  recipientAddress String // email / phone / fcm token / userId for inapp
+  channel          String // email | sms | whatsapp | push | inapp
+  status           String               @default("pending") // pending | queued | sending | sent | failed | retrying | cancelled
+  payload          Json // input variables for template rendering
+  renderedSubject  String?
+  renderedBody     String
+  messageId        String? // provider-returned message id
+  idempotencyKey   String // LAW-57: deterministic key for dedup
+  errorCode        String?
+  errorMessage     String?
+  createdAt        DateTime             @default(now())
+  queuedAt         DateTime?
+  sentAt           DateTime?
+  failedAt         DateTime?
+  cancelledAt      DateTime?
+  cancelledBy      String?
+  cancelReason     String?
+  version          Int                  @default(1) // optimistic lock (LAW-07)
+
+  deliveries NotificationDelivery[]
+  queueItems NotificationQueue[]
+
+  @@unique([tenantId, idempotencyKey]) // LAW-57: at-most-once delivery
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, recipientId, createdAt])
+  @@index([tenantId, channel, status])
+  @@map("notifications")
+}
+
+model NotificationDelivery {
+  id             String       @id @default(cuid())
+  tenantId       String
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id])
+  provider       String // smtp | ses | sendgrid | kavenegar | melipayamak | twilio | evolution | meta_cloud | firebase | inapp_db | inapp_ws
+  attempt        Int // 1-based attempt number
+  status         String // sending | sent | failed
+  response       Json? // raw provider response (status code, body)
+  durationMs     Int // duration in ms
+  errorMessage   String?
+  createdAt      DateTime     @default(now())
+
+  @@index([notificationId, attempt])
+  @@index([tenantId, status, createdAt])
+  @@map("notification_deliveries")
+}
+
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String // 1:1 with user
+  emailEnabled    Boolean  @default(true)
+  smsEnabled      Boolean  @default(true)
+  pushEnabled     Boolean  @default(true)
+  whatsappEnabled Boolean  @default(false)
+  inappEnabled    Boolean  @default(true)
+  language        String   @default("fa") // fa | en | ar | ku — overrides tenant default
+  quietHoursStart String? // "22:00" local time
+  quietHoursEnd   String? // "07:00" local time
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, userId])
+  @@map("notification_preferences")
+}
+
+model NotificationQueue {
+  id               String       @id @default(cuid())
+  tenantId         String
+  notificationId   String
+  notification     Notification @relation(fields: [notificationId], references: [id])
+  priority         Int          @default(100) // higher = sent first
+  attempt          Int          @default(0) // # of attempts already made
+  maxAttempts      Int          @default(5) // LAW-57: 5 attempts max
+  nextRetryAt      DateTime     @default(now())
+  inDeadLetter     Boolean      @default(false)
+  deadLetterAt     DateTime?
+  deadLetterReason String?
+  lockedBy         String? // processor id (cron job / worker)
+  lockedAt         DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([tenantId, inDeadLetter, nextRetryAt])
+  @@index([tenantId, nextRetryAt])
+  @@map("notification_queue")
 }

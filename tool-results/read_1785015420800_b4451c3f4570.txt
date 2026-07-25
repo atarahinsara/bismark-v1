@@ -1,0 +1,883 @@
+     1→/**
+     2→ * Notification Service — Core Dispatcher + Retry Engine (LAW-55/56/57)
+     3→ * =====================================================================
+     4→ *
+     5→ * The Notification Context's central service. Responsibilities:
+     6→ *
+     7→ *   dispatch(input)         — render template, dedupe by idempotencyKey,
+     8→ *                             create Notification + Queue item, publish
+     9→ *                             outbox events (LAW-55 + LAW-57).
+    10→ *
+    11→ *   processQueueItem(...)   — retry engine. Locks a queue item, calls the
+    12→ *                             channel provider, records the delivery, and
+    13→ *                             on failure schedules a backoff retry or
+    14→ *                             moves the item to the DLQ (LAW-57).
+    15→ *
+    16→ *   cancel(...)             — terminal cancellation (clears queue items).
+    17→ *
+    18→ *   retry(...)              — manual retry of a DLQ'd notification.
+    19→ *
+    20→ *   list / getById / getStats — read-side helpers for the admin UI.
+    21→ *
+    22→ * Architecture laws:
+    23→ *   LAW-08: Every state change publishes an outbox event
+    24→ *   LAW-55: Notifications Must Be Template-Based (versioned, language-aware)
+    25→ *   LAW-56: Notification Delivery Must Be Channel-Agnostic
+    26→ *   LAW-57: Notification Delivery Must Be Retryable And Idempotent
+    27→ */
+    28→
+    29→import { db } from '@/lib/db'
+    30→import { getTenantId } from '@/lib/api-helpers'
+    31→import {
+    32→  UnitOfWork,
+    33→  NotFoundException,
+    34→  BusinessException,
+    35→} from '@/lib/shared'
+    36→import { renderTemplate } from './template-engine'
+    37→import { getProvider } from './providers'
+    38→import type {
+    39→  Channel,
+    40→  DispatchInput,
+    41→  DispatchResult,
+    42→  NotificationStatus,
+    43→} from './types'
+    44→
+    45→// ============================================================
+    46→// Backoff schedule (LAW-57)
+    47→// ============================================================
+    48→
+    49→/**
+    50→ * Retry backoff in seconds, indexed by `attempt - 1`.
+    51→ *
+    52→ *   attempt 1 fails → wait 60s
+    53→ *   attempt 2 fails → wait 300s   (5 min)
+    54→ *   attempt 3 fails → wait 1800s  (30 min)
+    55→ *   attempt 4 fails → wait 7200s  (2 hours)
+    56→ *   attempt 5 fails → DLQ (terminal)
+    57→ *
+    58→ * maxAttempts defaults to 5 (see dispatch step 6).
+    59→ */
+    60→const BACKOFF_SCHEDULE_SECONDS = [60, 300, 1800, 7200]
+    61→
+    62→/** Maximum attempts per notification (LAW-57). */
+    63→const DEFAULT_MAX_ATTEMPTS = 5
+    64→
+    65→// ============================================================
+    66→// Service
+    67→// ============================================================
+    68→
+    69→export class NotificationService {
+    70→  // ----------------------------------------------------------
+    71→  // dispatch (LAW-55 + LAW-57)
+    72→  // ----------------------------------------------------------
+    73→
+    74→  /**
+    75→   * Render the named template, dedupe by `input.idempotencyKey`, create a
+    76→   * Notification + Queue item inside a transaction, and publish outbox
+    77→   * events `notification.created` and `notification.queued`.
+    78→   *
+    79→   * Idempotent: a second call with the same idempotencyKey returns the
+    80→   * existing notification with `created: false`.
+    81→   */
+    82→  async dispatch(input: DispatchInput): Promise<DispatchResult> {
+    83→    const tenantId = await getTenantId()
+    84→
+    85→    // 1. Idempotency pre-check (LAW-57)
+    86→    const existing = await db.notification.findUnique({
+    87→      where: { tenantId_idempotencyKey: { tenantId, idempotencyKey: input.idempotencyKey } },
+    88→    })
+    89→    if (existing) {
+    90→      return {
+    91→        notificationId: existing.id,
+    92→        status: existing.status as NotificationStatus,
+    93→        created: false,
+    94→        message: 'idempotent_hit',
+    95→      }
+    96→    }
+    97→
+    98→    // 2. Find the published template (LAW-55: versioned, language-aware)
+    99→    const template = await this.findTemplate(tenantId, input.templateCode, input.language)
+   100→    if (!template) {
+   101→      throw new NotFoundException('NOTIFICATION_TEMPLATE', input.templateCode)
+   102→    }
+   103→
+   104→    // 3. Resolve channel — caller override wins, else template's channel
+   105→    const channel: Channel = (input.channel ?? (template.channel as Channel)) as Channel
+   106→
+   107→    // 4. Render (LAW-55: deterministic)
+   108→    const rendered = renderTemplate({
+   109→      subjectTemplate: template.subjectTemplate,
+   110→      bodyTemplate: template.bodyTemplate,
+   111→      variables: input.variables,
+   112→    })
+   113→    if (rendered.warnings.length > 0) {
+   114→      console.warn(
+   115→        `[notification] template "${template.code}" v${template.version} produced ` +
+   116→          `${rendered.warnings.length} warning(s): ${rendered.warnings.join('; ')}`,
+   117→      )
+   118→    }
+   119→
+   120→    // 5. Persist inside a UoW (LAW-08: outbox events in same transaction)
+   121→    const now = new Date()
+   122→    const priority = input.priority ?? 100
+   123→    const language = input.language ?? template.language
+   124→
+   125→    try {
+   126→      const notification = await UnitOfWork.execute(async (uow) => {
+   127→        // (a) Create Notification with status=pending
+   128→        const notif = await uow.tx.notification.create({
+   129→          data: {
+   130→            tenantId,
+   131→            templateId: template.id,
+   132→            templateCode: template.code,
+   133→            templateVersion: template.version,
+   134→            language,
+   135→            recipientId: input.recipientId ?? null,
+   136→            recipientName: input.recipientName ?? null,
+   137→            recipientAddress: input.recipientAddress,
+   138→            channel,
+   139→            status: 'pending',
+   140→            payload: input.variables as any,
+   141→            renderedSubject: rendered.subject,
+   142→            renderedBody: rendered.body,
+   143→            idempotencyKey: input.idempotencyKey,
+   144→          },
+   145→        })
+   146→
+   147→        // (b) Create Queue item (LAW-57)
+   148→        await uow.tx.notificationQueue.create({
+   149→          data: {
+   150→            tenantId,
+   151→            notificationId: notif.id,
+   152→            priority,
+   153→            attempt: 0,
+   154→            maxAttempts: DEFAULT_MAX_ATTEMPTS,
+   155→            nextRetryAt: now,
+   156→            inDeadLetter: false,
+   157→          },
+   158→        })
+   159→
+   160→        // (c) Outbox: notification.created
+   161→        await uow.outbox.append({
+   162→          tenantId,
+   163→          aggregateType: 'Notification',
+   164→          aggregateId: notif.id,
+   165→          eventType: 'notification.created',
+   166→          eventVersion: '1.0',
+   167→          payload: {
+   168→            notificationId: notif.id,
+   169→            templateCode: template.code,
+   170→            templateVersion: template.version,
+   171→            language,
+   172→            channel,
+   173→            recipientId: input.recipientId ?? null,
+   174→            recipientAddress: input.recipientAddress,
+   175→            triggeredByEvent: input.triggeredByEvent ?? null,
+   176→            status: 'pending',
+   177→          },
+   178→          actorId: null,
+   179→        })
+   180→
+   181→        // (d) Transition to queued
+   182→        const updated = await uow.tx.notification.update({
+   183→          where: { id: notif.id },
+   184→          data: { status: 'queued', queuedAt: now },
+   185→        })
+   186→
+   187→        // (e) Outbox: notification.queued
+   188→        await uow.outbox.append({
+   189→          tenantId,
+   190→          aggregateType: 'Notification',
+   191→          aggregateId: notif.id,
+   192→          eventType: 'notification.queued',
+   193→          eventVersion: '1.0',
+   194→          payload: {
+   195→            notificationId: notif.id,
+   196→            priority,
+   197→            maxAttempts: DEFAULT_MAX_ATTEMPTS,
+   198→            queuedAt: now.toISOString(),
+   199→          },
+   200→          actorId: null,
+   201→        })
+   202→
+   203→        return updated
+   204→      })
+   205→
+   206→      console.log(
+   207→        `[notification] dispatched ${template.code} v${template.version} ` +
+   208→          `(${channel}) → notification ${notification.id} [queued]`,
+   209→      )
+   210→
+   211→      return {
+   212→        notificationId: notification.id,
+   213→        status: 'queued',
+   214→        created: true,
+   215→      }
+   216→    } catch (err: any) {
+   217→      // P2002: unique constraint violation — race condition (another worker
+   218→      // created the same idempotencyKey concurrently). Refetch and return
+   219→      // as idempotent hit (LAW-57).
+   220→      if (err?.code === 'P2002') {
+   221→        const raced = await db.notification.findUnique({
+   222→          where: {
+   223→            tenantId_idempotencyKey: { tenantId, idempotencyKey: input.idempotencyKey },
+   224→          },
+   225→        })
+   226→        if (raced) {
+   227→          console.log(
+   228→            `[notification] race-condition idempotent hit for key=${input.idempotencyKey}`,
+   229→          )
+   230→          return {
+   231→            notificationId: raced.id,
+   232→            status: raced.status as NotificationStatus,
+   233→            created: false,
+   234→            message: 'idempotent_hit_after_race',
+   235→          }
+   236→        }
+   237→      }
+   238→      throw err
+   239→    }
+   240→  }
+   241→
+   242→  // ----------------------------------------------------------
+   243→  // processQueueItem — retry engine (LAW-57)
+   244→  // ----------------------------------------------------------
+   245→
+   246→  /**
+   247→   * Process a single queue item end-to-end. Called by the queue worker
+   248→   * (cron / manual). Behaviour:
+   249→   *
+   250→   *   - Skip if already locked or in DLQ
+   251→   *   - Skip if notification is in a terminal state (sent / cancelled)
+   252→   *   - DLQ immediately if next attempt would exceed maxAttempts
+   253→   *   - Otherwise: pick provider, create delivery, send
+   254→   *     - Success → mark sent (terminal)
+   255→   *     - Failure → schedule backoff retry, or DLQ on final attempt
+   256→   */
+   257→  async processQueueItem(
+   258→    queueItemId: string,
+   259→    workerId: string,
+   260→  ): Promise<{
+   261→    status: 'sent' | 'failed' | 'retrying' | 'dead_lettered' | 'skipped'
+   262→    message?: string
+   263→  }> {
+   264→    const now = new Date()
+   265→
+   266→    // 1. Conditional lock (LAW-57: only if not DLQ'd and not locked)
+   267→    const lockResult = await db.notificationQueue.updateMany({
+   268→      where: { id: queueItemId, inDeadLetter: false, lockedBy: null },
+   269→      data: { lockedBy: workerId, lockedAt: now },
+   270→    })
+   271→    if (lockResult.count === 0) {
+   272→      return { status: 'skipped', message: 'already_locked_or_in_dlq' }
+   273→    }
+   274→
+   275→    // 2. Load queue item
+   276→    const queueItem = await db.notificationQueue.findUnique({
+   277→      where: { id: queueItemId },
+   278→    })
+   279→    if (!queueItem) {
+   280→      return { status: 'skipped', message: 'queue_item_not_found' }
+   281→    }
+   282→
+   283→    // 3. Load notification; skip + unlock if terminal
+   284→    const notification = await db.notification.findUnique({
+   285→      where: { id: queueItem.notificationId },
+   286→    })
+   287→    if (!notification) {
+   288→      await this.unlockQueueItem(queueItemId)
+   289→      return { status: 'skipped', message: 'notification_not_found' }
+   290→    }
+   291→    if (notification.status === 'sent' || notification.status === 'cancelled') {
+   292→      await this.unlockQueueItem(queueItemId)
+   293→      return {
+   294→        status: 'skipped',
+   295→        message: `notification_${notification.status}`,
+   296→      }
+   297→    }
+   298→
+   299→    // 4. Compute next attempt; pre-check DLQ (defensive — should rarely fire
+   300→    //    because the queue item is normally already in DLQ at this point)
+   301→    const newAttempt = queueItem.attempt + 1
+   302→    if (newAttempt > queueItem.maxAttempts) {
+   303→      await UnitOfWork.execute(async (uow) => {
+   304→        await uow.tx.notificationQueue.update({
+   305→          where: { id: queueItemId },
+   306→          data: {
+   307→            inDeadLetter: true,
+   308→            deadLetterAt: now,
+   309→            deadLetterReason: 'max_attempts_exceeded',
+   310→          },
+   311→        })
+   312→        await uow.tx.notification.update({
+   313→          where: { id: notification.id },
+   314→          data: { status: 'failed', failedAt: now },
+   315→        })
+   316→        await uow.outbox.append({
+   317→          tenantId: notification.tenantId,
+   318→          aggregateType: 'Notification',
+   319→          aggregateId: notification.id,
+   320→          eventType: 'notification.failed',
+   321→          eventVersion: '1.0',
+   322→          payload: {
+   323→            notificationId: notification.id,
+   324→            movedToDLQ: true,
+   325→            reason: 'max_attempts_exceeded',
+   326→            attempts: queueItem.attempt,
+   327→            maxAttempts: queueItem.maxAttempts,
+   328→          },
+   329→          actorId: null,
+   330→        })
+   331→      })
+   332→      console.error(
+   333→        `[notification] DLQ ${notification.id} — max_attempts_exceeded ` +
+   334→          `(attempts=${queueItem.attempt}, max=${queueItem.maxAttempts})`,
+   335→      )
+   336→      return { status: 'dead_lettered', message: 'max_attempts_exceeded' }
+   337→    }
+   338→
+   339→    // 5. Pick provider (LAW-56)
+   340→    const provider = getProvider(notification.channel as Channel)
+   341→
+   342→    // 6. Create NotificationDelivery row (attempt, sending)
+   343→    const delivery = await db.notificationDelivery.create({
+   344→      data: {
+   345→        tenantId: notification.tenantId,
+   346→        notificationId: notification.id,
+   347→        provider: provider.name,
+   348→        attempt: newAttempt,
+   349→        status: 'sending',
+   350→        durationMs: 0,
+   351→        createdAt: now,
+   352→      },
+   353→    })
+   354→
+   355→    // 7. Mark notification as sending
+   356→    await db.notification.update({
+   357→      where: { id: notification.id },
+   358→      data: { status: 'sending' },
+   359→    })
+   360→
+   361→    // 8. Send via provider (never throws — returns failure result)
+   362→    const sendResult = await provider.send({
+   363→      to: notification.recipientAddress,
+   364→      subject: notification.renderedSubject,
+   365→      body: notification.renderedBody,
+   366→      variables: (notification.payload as Record<string, any>) ?? {},
+   367→    })
+   368→
+   369→    // 9. Success path
+   370→    if (sendResult.success) {
+   371→      await UnitOfWork.execute(async (uow) => {
+   372→        await uow.tx.notificationDelivery.update({
+   373→          where: { id: delivery.id },
+   374→          data: {
+   375→            status: 'sent',
+   376→            response: (sendResult.providerResponse as any) ?? null,
+   377→            durationMs: sendResult.durationMs,
+   378→          },
+   379→        })
+   380→        await uow.tx.notification.update({
+   381→          where: { id: notification.id },
+   382→          data: {
+   383→            status: 'sent',
+   384→            messageId: sendResult.messageId ?? null,
+   385→            sentAt: now,
+   386→            // Clear any previous error info from earlier failed attempts
+   387→            errorCode: null,
+   388→            errorMessage: null,
+   389→          },
+   390→        })
+   391→        await uow.tx.notificationQueue.update({
+   392→          where: { id: queueItemId },
+   393→          data: { attempt: newAttempt },
+   394→          // lockedBy/lockedAt left set — terminal state, won't be picked up again
+   395→        })
+   396→        await uow.outbox.append({
+   397→          tenantId: notification.tenantId,
+   398→          aggregateType: 'Notification',
+   399→          aggregateId: notification.id,
+   400→          eventType: 'notification.sent',
+   401→          eventVersion: '1.0',
+   402→          payload: {
+   403→            notificationId: notification.id,
+   404→            provider: provider.name,
+   405→            attempt: newAttempt,
+   406→            messageId: sendResult.messageId ?? null,
+   407→            durationMs: sendResult.durationMs,
+   408→          },
+   409→          actorId: null,
+   410→        })
+   411→      })
+   412→      console.log(
+   413→        `[notification] sent ${notification.id} via ${provider.name} ` +
+   414→          `(attempt ${newAttempt}/${queueItem.maxAttempts}, ${sendResult.durationMs}ms)`,
+   415→      )
+   416→      return { status: 'sent' }
+   417→    }
+   418→
+   419→    // 10. Failure path
+   420→    console.error(
+   421→      `[notification] send failed for ${notification.id} via ${provider.name} ` +
+   422→        `(attempt ${newAttempt}/${queueItem.maxAttempts}): ${sendResult.errorMessage}`,
+   423→    )
+   424→
+   425→    const isFinalAttempt = newAttempt >= queueItem.maxAttempts
+   426→
+   427→    if (isFinalAttempt) {
+   428→      // 10a. Move to DLQ
+   429→      await UnitOfWork.execute(async (uow) => {
+   430→        await uow.tx.notificationDelivery.update({
+   431→          where: { id: delivery.id },
+   432→          data: {
+   433→            status: 'failed',
+   434→            errorMessage: sendResult.errorMessage ?? null,
+   435→            durationMs: sendResult.durationMs,
+   436→          },
+   437→        })
+   438→        await uow.tx.notificationQueue.update({
+   439→          where: { id: queueItemId },
+   440→          data: {
+   441→            attempt: newAttempt,
+   442→            inDeadLetter: true,
+   443→            deadLetterAt: now,
+   444→            deadLetterReason: sendResult.errorMessage ?? 'unknown_error',
+   445→          },
+   446→        })
+   447→        await uow.tx.notification.update({
+   448→          where: { id: notification.id },
+   449→          data: {
+   450→            status: 'failed',
+   451→            failedAt: now,
+   452→            errorCode: 'DELIVERY_FAILED',
+   453→            errorMessage: sendResult.errorMessage ?? 'unknown_error',
+   454→          },
+   455→        })
+   456→        await uow.outbox.append({
+   457→          tenantId: notification.tenantId,
+   458→          aggregateType: 'Notification',
+   459→          aggregateId: notification.id,
+   460→          eventType: 'notification.failed',
+   461→          eventVersion: '1.0',
+   462→          payload: {
+   463→            notificationId: notification.id,
+   464→            movedToDLQ: true,
+   465→            attempt: newAttempt,
+   466→            maxAttempts: queueItem.maxAttempts,
+   467→            provider: provider.name,
+   468→            errorMessage: sendResult.errorMessage ?? null,
+   469→          },
+   470→          actorId: null,
+   471→        })
+   472→      })
+   473→      return { status: 'dead_lettered', message: sendResult.errorMessage }
+   474→    }
+   475→
+   476→    // 10b. Schedule a backoff retry
+   477→    const backoffIndex = Math.min(newAttempt - 1, BACKOFF_SCHEDULE_SECONDS.length - 1)
+   478→    const backoffSeconds = BACKOFF_SCHEDULE_SECONDS[backoffIndex]
+   479→    const nextRetryAt = new Date(now.getTime() + backoffSeconds * 1000)
+   480→
+   481→    await UnitOfWork.execute(async (uow) => {
+   482→      await uow.tx.notificationDelivery.update({
+   483→        where: { id: delivery.id },
+   484→        data: {
+   485→          status: 'failed',
+   486→          errorMessage: sendResult.errorMessage ?? null,
+   487→          durationMs: sendResult.durationMs,
+   488→        },
+   489→      })
+   490→      await uow.tx.notificationQueue.update({
+   491→        where: { id: queueItemId },
+   492→        data: {
+   493→          attempt: newAttempt,
+   494→          nextRetryAt,
+   495→          // Unlock so the worker can pick it up at nextRetryAt
+   496→          lockedBy: null,
+   497→          lockedAt: null,
+   498→        },
+   499→      })
+   500→      await uow.tx.notification.update({
+   501→        where: { id: notification.id },
+   502→        data: {
+   503→          status: 'retrying',
+   504→          errorCode: 'DELIVERY_FAILED',
+   505→          errorMessage: sendResult.errorMessage ?? null,
+   506→        },
+   507→      })
+   508→      await uow.outbox.append({
+   509→        tenantId: notification.tenantId,
+   510→        aggregateType: 'Notification',
+   511→        aggregateId: notification.id,
+   512→        eventType: 'notification.retrying',
+   513→        eventVersion: '1.0',
+   514→        payload: {
+   515→          notificationId: notification.id,
+   516→          attempt: newAttempt,
+   517→          maxAttempts: queueItem.maxAttempts,
+   518→          nextRetryAt: nextRetryAt.toISOString(),
+   519→          backoffSeconds,
+   520→          provider: provider.name,
+   521→          errorMessage: sendResult.errorMessage ?? null,
+   522→        },
+   523→        actorId: null,
+   524→      })
+   525→    })
+   526→
+   527→    console.log(
+   528→      `[notification] retrying ${notification.id} in ${backoffSeconds}s ` +
+   529→        `(attempt ${newAttempt}/${queueItem.maxAttempts})`,
+   530→    )
+   531→    return { status: 'retrying', message: `next_retry_in_${backoffSeconds}s` }
+   532→  }
+   533→
+   534→  // ----------------------------------------------------------
+   535→  // cancel (LAW-57)
+   536→  // ----------------------------------------------------------
+   537→
+   538→  /**
+   539→   * Cancel a notification that hasn't reached a terminal state.
+   540→   * Marks the notification as `cancelled` and pushes its queue items
+   541→   * into the DLQ with reason 'cancelled' so they won't be picked up.
+   542→   */
+   543→  async cancel(
+   544→    notificationId: string,
+   545→    cancelledBy: string,
+   546→    reason: string,
+   547→  ): Promise<void> {
+   548→    const notification = await db.notification.findUnique({
+   549→      where: { id: notificationId },
+   550→    })
+   551→    if (!notification) {
+   552→      throw new NotFoundException('Notification', notificationId)
+   553→    }
+   554→    if (notification.status === 'sent' || notification.status === 'cancelled') {
+   555→      throw new BusinessException(
+   556→        `Cannot cancel notification in terminal status: ${notification.status}`,
+   557→        'NOTIFICATION_TERMINAL',
+   558→        422,
+   559→      )
+   560→    }
+   561→
+   562→    const now = new Date()
+   563→    await UnitOfWork.execute(async (uow) => {
+   564→      await uow.tx.notification.update({
+   565→        where: { id: notificationId },
+   566→        data: {
+   567→          status: 'cancelled',
+   568→          cancelledAt: now,
+   569→          cancelledBy,
+   570→          cancelReason: reason,
+   571→        },
+   572→      })
+   573→      // Push all queue items to DLQ with reason 'cancelled' so the worker
+   574→      // won't pick them up again.
+   575→      await uow.tx.notificationQueue.updateMany({
+   576→        where: { notificationId },
+   577→        data: {
+   578→          inDeadLetter: true,
+   579→          deadLetterAt: now,
+   580→          deadLetterReason: 'cancelled',
+   581→          lockedBy: null,
+   582→          lockedAt: null,
+   583→        },
+   584→      })
+   585→      await uow.outbox.append({
+   586→        tenantId: notification.tenantId,
+   587→        aggregateType: 'Notification',
+   588→        aggregateId: notificationId,
+   589→        eventType: 'notification.cancelled',
+   590→        eventVersion: '1.0',
+   591→        payload: {
+   592→          notificationId,
+   593→          cancelledBy,
+   594→          cancelReason: reason,
+   595→          cancelledAt: now.toISOString(),
+   596→        },
+   597→        actorId: cancelledBy,
+   598→      })
+   599→    })
+   600→
+   601→    console.log(
+   602→      `[notification] cancelled ${notificationId} by ${cancelledBy}: ${reason}`,
+   603→    )
+   604→  }
+   605→
+   606→  // ----------------------------------------------------------
+   607→  // retry (LAW-57 — manual retry of DLQ'd)
+   608→  // ----------------------------------------------------------
+   609→
+   610→  /**
+   611→   * Manually retry a failed or DLQ'd notification. Resets the queue item
+   612→   * to attempt=0 and moves the notification back to `queued`.
+   613→   *
+   614→   * Throws if the notification is in a terminal state (sent / cancelled).
+   615→   */
+   616→  async retry(notificationId: string): Promise<void> {
+   617→    const notification = await db.notification.findUnique({
+   618→      where: { id: notificationId },
+   619→    })
+   620→    if (!notification) {
+   621→      throw new NotFoundException('Notification', notificationId)
+   622→    }
+   623→    if (notification.status === 'sent' || notification.status === 'cancelled') {
+   624→      throw new BusinessException(
+   625→        `Cannot retry notification in terminal status: ${notification.status}`,
+   626→        'NOTIFICATION_TERMINAL',
+   627→        422,
+   628→      )
+   629→    }
+   630→
+   631→    const now = new Date()
+   632→    await UnitOfWork.execute(async (uow) => {
+   633→      // Reset ALL queue items for this notification
+   634→      await uow.tx.notificationQueue.updateMany({
+   635→        where: { notificationId },
+   636→        data: {
+   637→          attempt: 0,
+   638→          nextRetryAt: now,
+   639→          inDeadLetter: false,
+   640→          deadLetterAt: null,
+   641→          deadLetterReason: null,
+   642→          lockedBy: null,
+   643→          lockedAt: null,
+   644→        },
+   645→      })
+   646→      await uow.tx.notification.update({
+   647→        where: { id: notificationId },
+   648→        data: {
+   649→          status: 'queued',
+   650→          errorCode: null,
+   651→          errorMessage: null,
+   652→          failedAt: null,
+   653→        },
+   654→      })
+   655→      await uow.outbox.append({
+   656→        tenantId: notification.tenantId,
+   657→        aggregateType: 'Notification',
+   658→        aggregateId: notificationId,
+   659→        eventType: 'notification.retried',
+   660→        eventVersion: '1.0',
+   661→        payload: {
+   662→          notificationId,
+   663→          retriedAt: now.toISOString(),
+   664→        },
+   665→        actorId: null,
+   666→      })
+   667→    })
+   668→
+   669→    console.log(`[notification] manual retry of ${notificationId}`)
+   670→  }
+   671→
+   672→  // ----------------------------------------------------------
+   673→  // Read-side: list
+   674→  // ----------------------------------------------------------
+   675→
+   676→  async list(filters: {
+   677→    tenantId: string
+   678→    status?: NotificationStatus
+   679→    channel?: Channel
+   680→    recipientId?: string
+   681→    page?: number
+   682→    perPage?: number
+   683→  }): Promise<{ data: any[]; total: number }> {
+   684→    const page = Math.max(1, filters.page ?? 1)
+   685→    const perPage = Math.min(100, Math.max(1, filters.perPage ?? 20))
+   686→
+   687→    const where: any = { tenantId: filters.tenantId }
+   688→    if (filters.status) where.status = filters.status
+   689→    if (filters.channel) where.channel = filters.channel
+   690→    if (filters.recipientId) where.recipientId = filters.recipientId
+   691→
+   692→    const [data, total] = await Promise.all([
+   693→      db.notification.findMany({
+   694→        where,
+   695→        orderBy: { createdAt: 'desc' },
+   696→        skip: (page - 1) * perPage,
+   697→        take: perPage,
+   698→        include: {
+   699→          _count: { select: { deliveries: true } },
+   700→        },
+   701→      }),
+   702→      db.notification.count({ where }),
+   703→    ])
+   704→
+   705→    return { data, total }
+   706→  }
+   707→
+   708→  // ----------------------------------------------------------
+   709→  // Read-side: getById
+   710→  // ----------------------------------------------------------
+   711→
+   712→  async getById(tenantId: string, id: string): Promise<any | null> {
+   713→    return db.notification.findFirst({
+   714→      where: { id, tenantId },
+   715→      include: {
+   716→        deliveries: { orderBy: { attempt: 'asc' } },
+   717→        queueItems: { orderBy: { createdAt: 'asc' } },
+   718→        template: {
+   719→          select: {
+   720→            id: true,
+   721→            code: true,
+   722→            version: true,
+   723→            name: true,
+   724→            language: true,
+   725→            channel: true,
+   726→          },
+   727→        },
+   728→      },
+   729→    })
+   730→  }
+   731→
+   732→  // ----------------------------------------------------------
+   733→  // Read-side: getStats (dashboard)
+   734→  // ----------------------------------------------------------
+   735→
+   736→  async getStats(tenantId: string): Promise<{
+   737→    queued: number
+   738→    sending: number
+   739→    sentToday: number
+   740→    failed: number
+   741→    retrying: number
+   742→    dlq: number
+   743→    byChannel: Record<Channel, number>
+   744→    successRate: number
+   745→    avgDeliveryMs: number | null
+   746→  }> {
+   747→    const now = new Date()
+   748→    const todayStart = new Date(
+   749→      now.getFullYear(),
+   750→      now.getMonth(),
+   751→      now.getDate(),
+   752→      0,
+   753→      0,
+   754→      0,
+   755→      0,
+   756→    )
+   757→
+   758→    const [
+   759→      queued,
+   760→      sending,
+   761→      sentToday,
+   762→      failed,
+   763→      retrying,
+   764→      dlq,
+   765→      byChannelRaw,
+   766→      sentTotal,
+   767→      avgDelivery,
+   768→    ] = await Promise.all([
+   769→      db.notification.count({
+   770→        where: { tenantId, status: { in: ['pending', 'queued'] } },
+   771→      }),
+   772→      db.notification.count({ where: { tenantId, status: 'sending' } }),
+   773→      db.notification.count({
+   774→        where: { tenantId, status: 'sent', sentAt: { gte: todayStart } },
+   775→      }),
+   776→      db.notification.count({ where: { tenantId, status: 'failed' } }),
+   777→      db.notification.count({ where: { tenantId, status: 'retrying' } }),
+   778→      db.notificationQueue.count({ where: { tenantId, inDeadLetter: true } }),
+   779→      db.notification.groupBy({
+   780→        by: ['channel'],
+   781→        where: { tenantId },
+   782→        _count: true,
+   783→      }),
+   784→      db.notification.count({ where: { tenantId, status: 'sent' } }),
+   785→      db.notificationDelivery.aggregate({
+   786→        where: { tenantId, status: 'sent' },
+   787→        _avg: { durationMs: true },
+   788→      }),
+   789→    ])
+   790→
+   791→    // Build the byChannel record — default every channel to 0
+   792→    const byChannel: Record<Channel, number> = {
+   793→      email: 0,
+   794→      sms: 0,
+   795→      whatsapp: 0,
+   796→      push: 0,
+   797→      inapp: 0,
+   798→    }
+   799→    for (const row of byChannelRaw) {
+   800→      byChannel[row.channel as Channel] = row._count
+   801→    }
+   802→
+   803→    // successRate = sent / (sent + failed) * 100, rounded to 2 decimals.
+   804→    // 0 when no sent+failed (avoids divide-by-zero).
+   805→    const denom = sentTotal + failed
+   806→    const successRate =
+   807→      denom === 0 ? 0 : Math.round((sentTotal / denom) * 10000) / 100
+   808→
+   809→    const avgDeliveryMs = avgDelivery._avg.durationMs ?? null
+   810→
+   811→    return {
+   812→      queued,
+   813→      sending,
+   814→      sentToday,
+   815→      failed,
+   816→      retrying,
+   817→      dlq,
+   818→      byChannel,
+   819→      successRate,
+   820→      avgDeliveryMs,
+   821→    }
+   822→  }
+   823→
+   824→  // ----------------------------------------------------------
+   825→  // Private helpers
+   826→  // ----------------------------------------------------------
+   827→
+   828→  /**
+   829→   * Find the latest published template for `code` with language fallback.
+   830→   * Order: input.language (if given) → 'fa' → any.
+   831→   *
+   832→   * Filters (LAW-55):
+   833→   *   - status = 'published'
+   834→   *   - effectiveFrom <= now
+   835→   *   - effectiveTo IS NULL OR effectiveTo >= now
+   836→   *   - deletedAt IS NULL
+   837→   * Sort: version DESC (latest published version wins).
+   838→   */
+   839→  private async findTemplate(
+   840→    tenantId: string,
+   841→    code: string,
+   842→    language?: string,
+   843→  ): Promise<any | null> {
+   844→    const now = new Date()
+   845→    const baseWhere = {
+   846→      tenantId,
+   847→      code,
+   848→      status: 'published',
+   849→      deletedAt: null,
+   850→      effectiveFrom: { lte: now },
+   851→      OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
+   852→    }
+   853→
+   854→    // Try preferred language, then 'fa' as a fallback
+   855→    const preferredLanguages = language ? [language, 'fa'] : ['fa']
+   856→    for (const lang of preferredLanguages) {
+   857→      const tpl = await db.notificationTemplate.findFirst({
+   858→        where: { ...baseWhere, language: lang },
+   859→        orderBy: { version: 'desc' },
+   860→      })
+   861→      if (tpl) return tpl
+   862→    }
+   863→
+   864→    // Final fallback: any language
+   865→    return db.notificationTemplate.findFirst({
+   866→      where: baseWhere,
+   867→      orderBy: { version: 'desc' },
+   868→    })
+   869→  }
+   870→
+   871→  /** Release the lock on a queue item (used on early-skip paths). */
+   872→  private async unlockQueueItem(queueItemId: string): Promise<void> {
+   873→    await db.notificationQueue
+   874→      .update({
+   875→        where: { id: queueItemId },
+   876→        data: { lockedBy: null, lockedAt: null },
+   877→      })
+   878→      .catch(() => {
+   879→        // Swallow — best-effort unlock
+   880→      })
+   881→  }
+   882→}
+   883→

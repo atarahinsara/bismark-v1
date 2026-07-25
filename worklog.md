@@ -1320,3 +1320,771 @@ Stage Summary:
 - Sprint 7.2: ✅ Complete (Rule Engine)
 - Total Architecture Laws: ۵۴ (نهایی)
 - آماده Sprint 7.3 (Notification Center)
+
+---
+
+Task ID: 2
+Agent: Subagent — Prisma Models
+Task: Sprint 7.3 (Notification Center) — Add 5 Prisma Models (LAW-55/56/57)
+
+Work Log:
+- مطالعه worklog.md برای درک تاریخچه پروژه و کارهای قبلی (Sprint 6 → 7.1 → 7.2)
+- مطالعه انتهای prisma/schema.prisma برای تأیید کنوانسیون موجود (cuid id، tenantId، @@map snake_case، @@index، deletedAt، Json? برای DSL — مطابق RuleSet/RuleDefinition/RuleExecution/RuleAuditStep و WorkflowDefinition/WorkflowInstance)
+- اضافه شدن ۵ مدل جدید به انتهای prisma/schema.prisma با کامنت بخش‌بندی «SPRINT 7.3 — NOTIFICATION CENTER» و قانون‌های LAW-55/56/57
+- عدم استفاده از @@index نامعتبر در NotificationQueue (طبق هشدار task، فقط دو ایندکس معتبر نگه‌داشته شد)
+- اجرای bunx prisma format → بدون خطا
+- اجرای bun run db:push (که به prisma db push --accept-data-loss مپ می‌شود) → موفق، 46ms
+- Prisma Client regenerate شد (v6.19.2)
+- Verify با query مستقیم sqlite_master: هر ۵ جدول ساخته شدند
+
+Models Added (5):
+1. NotificationTemplate (notification_templates)
+   • LAW-55: versioned (version Int)، language-aware (fa|en|ar|ku)
+   • @@unique([tenantId, code, version, language, channel]) — یک نسخه فعال per code+language+channel
+   • subjectTemplate nullable (برای sms/whatsapp/push/inapp بدون subject)
+   • bodyTemplate با {{variables}}, {{#if}}, {{#each}} (Handlebars-style)
+   • variablesSchema Json? — تعریف متغیرها [{ name, type, required, description }]
+   • status: draft|published|disabled، effectiveFrom/effectiveTo
+2. Notification (notifications)
+   • LAW-55: snapshot‌های templateCode/templateVersion/language در زمان creation
+   • LAW-57: idempotencyKey با @@unique([tenantId, idempotencyKey]) — at-most-once delivery
+   • channel: email|sms|whatsapp|push|inapp
+   • status: pending|queued|sending|sent|failed|retrying|cancelled
+   • payload Json (متغیرهای ورودی برای render)، renderedSubject/renderedBody
+   • messageId (از provider)، errorCode/errorMessage
+   • version Int @default(1) — LAW-07 Optimistic Lock
+   • relations: template, deliveries[], queueItems[]
+3. NotificationDelivery (notification_deliveries)
+   • LAW-54-style audit: یک ردیف per attempt
+   • provider: smtp|ses|sendgrid|kavenegar|melipayamak|twilio|evolution|meta_cloud|firebase|inapp_db|inapp_ws
+   • attempt (1-based)، status: sending|sent|failed
+   • response Json? (raw provider response)، durationMs، errorMessage
+   • @@index([notificationId, attempt]) — audit trail per notification
+4. NotificationPreference (notification_preferences)
+   • LAW-56: recipient-level opt-in/opt-out per channel
+   • emailEnabled/smsEnabled/pushEnabled/whatsappEnabled/inappEnabled
+   • language override (fa|en|ar|ku)
+   • quietHoursStart/quietHoursEnd (مثلاً "22:00" تا "07:00")
+   • @@unique([tenantId, userId]) — 1:1 با user
+5. NotificationQueue (notification_queue)
+   • LAW-57: retry engine state
+   • priority Int @default(100)، attempt Int @default(0)، maxAttempts Int @default(5)
+   • nextRetryAt DateTime — برای polling cron/worker
+   • inDeadLetter Boolean، deadLetterAt، deadLetterReason — DLQ
+   • lockedBy/lockedAt — برای جلوگیری از رقابت worker‌ها
+   • @@index([tenantId, inDeadLetter, nextRetryAt]) — DLQ scan
+   • @@index([tenantId, nextRetryAt]) — worker poll
+
+Stage Summary:
+- ✅ Schema applied successfully (SQLite in sync — 46ms)
+- ✅ Prisma Client regenerated (v6.19.2)
+- ✅ All 5 tables verified in sqlite_master: notification_deliveries, notification_preferences, notification_queue, notification_templates, notifications
+- ✅ prisma format: no errors
+- ✅ Convention compliance: cuid id, tenantId, @@map snake_case, @@index, deletedAt (on template), Json? for DSL/object data, String for enum-like (SQLite has no native enums), no Json[] arrays
+- LAW-55/56/57 پایه داده‌ای آماده برای پیاده‌سازی Notification Context در task‌های بعدی (template renderer, channel dispatcher, retry worker, DLQ handler, preference resolver)
+- آماده برای Sprint 7.3 ادامه (API routes, template engine, channel providers, queue worker)
+
+---
+
+Task ID: 3
+Agent: Subagent — Template Engine
+Task: Sprint 7.3 (Notification Center) — Deterministic Notification Template Engine (LAW-55)
+
+Work Log:
+- مطالعه worklog.md برای درک تاریخچه پروژه و کارهای قبلی (Sprint 6 → 7.1 → 7.2 → 7.3 Task 2 که ۵ مدل Prisma برای Notification را اضافه کرد)
+- مطالعه law-55.ts، law-53.ts (Determinism)، law-56.ts، law-57.ts و محصولات قبلی (Product module) برای پیروی از کنوانسیون پروژه
+- مطالعه tsconfig.json و eslint.config.mjs برای اطمینان از پاس کردن type-check و lint
+- ایجاد ساختار پوشه‌ای جدید برای Notification Context:
+  • /home/z/my-project/src/lib/modules/notification/services/
+  • /home/z/my-project/src/lib/modules/notification/contracts/ (با .gitkeep برای ردیابی git)
+- پیاده‌سازی موتور Template Engine به‌صورت کاملاً deterministic (LAW-53 style):
+  • بدون Date.now()، بدون Math.random()، بدون I/O، بدون side effect
+  • هر "current date" باید از سمت caller در variables payload بیاید (مثلاً {{currentDate}})
+- معماری سه‌لایه‌ای: Tokenizer → Parser (recursive descent → AST) → Renderer (AST walker با scope stack)
+- سینتکس پشتیبانی‌شده:
+  • Variables با dot-path: {{customer.name}}، {{invoice.total}}، {{currentDate}}، {{company.name}}
+  • Conditionals: {{#if ...}}...{{else}}...{{/if}} با nested و truthy/falsy semantics (false, 0, '', null, undefined, [] falsy)
+  • Loops: {{#each ...}}...{{/each}} با {{this}}، {{this.field}}، {{@index}}، {{@first}}، {{@last}} و nesting
+- Edge cases پشتیبانی‌شده:
+  • Missing variable → empty string (هرگز throw نمی‌کند)
+  • Stray {{else}} خارج از {{#if}} → literal text "{{else}}"
+  • {{this}} bare داخل #each → خود آیتم primitive
+  • HTML escaping: NONE (متن خام — مسئولیت caller)
+  • {{#each}} روی non-array → رندر خالی + warning (نه throw)
+- Public API صادر شده:
+  • renderTemplate(input: TemplateInput): RenderResult  (subject + body + warnings)
+  • renderString(template, variables): string  (convenience، ad-hoc)
+  • validateTemplate(template): string[]  (بررسی structural: unclosed #if/#each، unexpected /if//each)
+  • Interfaces: RenderResult, TemplateInput
+- Barrel file: index.ts با `export * from './services/template-engine'` + JSDoc برای laws و رزرو فضای future exports
+- اجرای ۲۸ تست سناریویی با bun runtime برای تأیید رفتار (تمام موارد PASS شد):
+  • متغیرهای dot-path، شرطی‌های nested، حلقه‌های nested، @first/@last، bare this
+  • Missing variable، zero falsy در if اما '0' در variable، empty array falsy
+  • Stray else، each روی non-array، renderTemplate با subject null
+  • Determinism: same input → same output (تأیید LAW-53 style)
+  • Validator: unclosed #if، unexpected /each
+- Bug fix حین تست: then-part در {{#if}} باید روی هم {{else}} و هم {{/if}} توقف کند (قبلاً فقط روی else توقف می‌کرد و /if را unexpected می‌پنداشت). اصلاح با parseBlock(true, 'if')
+- اجرای bunx tsc --noEmit: ۱۲۷ خطای TS در سراسر پروژه، ولی **صفر خطا** در فایل‌های جدید (تمام خطاها pre-existing از sprint‌های قبلی: Next.js route handlers، unit-of-work، outbox/dead-letter، examples، skills)
+- اجرای bun run lint: EXIT_CODE=0 (پروژه به‌طور کامل lint-clean است، شامل فایل‌های جدید)
+
+Files Created:
+1. /home/z/my-project/src/lib/modules/notification/services/template-engine.ts (~ 420 خط)
+   • Tokenizer (regex-based، never throws)
+   • Recursive descent parser → AST (TextNode | VariableNode | IfNode | EachNode)
+   • AST walker با scope stack برای loop shadowing
+   • Sentinel Symbol برای NOT_FOUND (بدون collision با مقادیر user)
+   • Truthiness بر اساس spec (false, 0, '', null, undefined, [])
+2. /home/z/my-project/src/lib/modules/notification/index.ts
+   • Barrel file با `export * from './services/template-engine'`
+   • JSDoc برای LAW-55/56/57 و رزرو future exports
+3. /home/z/my-project/src/lib/modules/notification/contracts/.gitkeep
+   • Placeholder برای future contracts (channel providers، preference resolver و ...)
+
+Stage Summary:
+- ✅ Template Engine پیاده‌سازی شد و کاملاً deterministic است (LAW-53 style)
+- ✅ پشتیبانی کامل از variables، conditionals (با else و nesting)، loops (با @index/@first/@last و nesting)
+- ✅ Edge cases پوشش داده شد (missing var، stray else، non-array each، bare this، no HTML escape)
+- ✅ ۲۸ تست سناریویی با bun runtime — همگی PASS
+- ✅ tsc --noEmit: صفر خطا در فایل‌های جدید
+- ✅ bun run lint: EXIT_CODE=0 (project-wide clean)
+- ✅ LAW-55 (template-based) حالا قابل استفاده است — Notification Context می‌تواند در task‌های بعدی از این engine برای render کردن subject + body استفاده کند
+- آماده برای task‌های بعدی Sprint 7.3: channel providers (LAW-56)، retry worker + DLQ (LAW-57)، notification service (LAW-51 event-driven dispatch)، preference resolver
+
+---
+
+Task ID: 4
+Agent: Subagent — Notification Services
+Task: Sprint 7.3 (Notification Center) — Notification Service + Channel Providers + Retry Engine (LAW-55/56/57)
+
+Work Log:
+- مطالعه worklog.md برای درک تاریخچه پروژه (Tasks 1–3: Business Analysis → Schema → Template Engine)
+- مطالعه فایل‌های زیر برای درک کنوانسیون پروژه و الگوهای موجود:
+  • src/lib/shared/infra/unit-of-work.ts — UnitOfWork.execute + OutboxHelper.append API (LAW-08)
+  • src/lib/shared/infra/idempotency-helper.ts — الگوی idempotency مبتنی بر unique key
+  • src/lib/shared/index.ts — تمام exports شامل exceptions، UnitOfWork، OptimisticLockHelper، laws (1..57)
+  • src/lib/shared/exceptions/{not-found,business,validation,conflict,domain}-exception.ts — signature های exception
+  • src/lib/modules/notification/services/template-engine.ts — renderTemplate/renderString/validateTemplate API
+  • src/lib/modules/notification/index.ts — barrel فعلی (فقط template-engine)
+  • src/lib/modules/product/services/product-query-service.ts — الگوی service + singleton + NotFoundException
+  • prisma/schema.prisma (lines 2245–2370) — ۵ مدل Notification* با فیلدها، relations، @@unique ها
+- پیاده‌سازی ۴ فایل جدید + به‌روزرسانی barrel:
+  1. types.ts — Channel, NotificationStatus, DeliveryStatus, ChannelProvider, ChannelSendInput/Result, DispatchInput/Result
+  2. providers.ts — ۱۰ provider stub (smtp/ses/sendgrid/kavenegar/melipayamak/twilio/evolution/meta_cloud/firebase/inapp_db) + getProvider + DEFAULT_PROVIDERS + listProviders
+  3. notification-service.ts — dispatch / processQueueItem / cancel / retry / list / getById / getStats
+  4. preference-service.ts — getOrCreate / update با outbox event
+  5. index.ts — اضافه شدن exports + singletons (notificationService, preferenceService)
+- الگوی sandbox-safe provider (LAW-56):
+  • هر provider غیر-inapp: console.log + 10–50ms delay + deterministic 10% failure oracle (FNV-1a hash روی to+body)
+  • inapp_db: همیشه success (Notification row خودش payload است — هیچ ارسال واقعی نیاز نیست)
+  • Verifiable: re-run همان (to, body) همان نتیجه را می‌دهد (retry behavior قابل تست)
+- dispatch flow (LAW-55 + LAW-57):
+  • Pre-check idempotent hit با db.notification.findUnique({ where: { tenantId_idempotencyKey } })
+  • findTemplate با language fallback (input.language → 'fa' → any) + filter published + effectiveFrom/effectiveTo + deletedAt IS NULL + orderBy version DESC
+  • renderTemplate (LAW-55 deterministic)
+  • UnitOfWork.execute: create notification(pending) → create queueItem(attempt:0, maxAttempts:5) → outbox notification.created → update notification(queued) → outbox notification.queued
+  • P2002 catch → refetch و return idempotent_hit_after_race (race condition safety)
+- processQueueItem flow (LAW-57 retry engine):
+  • Conditional lock: updateMany WHERE inDeadLetter=false AND lockedBy=null — اگر 0 rows → skip
+  • Load notification; اگر sent/cancelled → unlock + skip
+  • Pre-check: newAttempt > maxAttempts → DLQ + outbox notification.failed
+  • Pick provider (LAW-56) → create NotificationDelivery(sending, attempt) → update notification(sending) → provider.send()
+  • Success: update delivery(sent, response, durationMs) + notification(sent, messageId, sentAt, clear errorCode) + queue(attempt) + outbox notification.sent
+  • Failure: 
+    - If newAttempt >= maxAttempts → DLQ + outbox notification.failed (movedToDLQ:true)
+    - Else → backoff schedule [60, 300, 1800, 7200]s → update queue(attempt, nextRetryAt, unlock) + notification(retrying) + outbox notification.retrying
+- cancel flow: throw if terminal → update notification(cancelled, cancelledAt, cancelledBy, cancelReason) + updateMany queue(inDeadLetter:true, deadLetterReason:'cancelled') + outbox notification.cancelled
+- retry flow: throw if terminal → updateMany queue(attempt:0, nextRetryAt:now, inDeadLetter:false, clear DLQ fields, unlock) + notification(queued, clear errorCode/errorMessage/failedAt) + outbox notification.retried
+- list: pagination (default page=1, perPage=20, max 100) + filters (status, channel, recipientId) + _count deliveries + orderBy createdAt DESC
+- getById: include deliveries (orderBy attempt ASC) + queueItems (orderBy createdAt ASC) + template (select id/code/version/name/language/channel)
+- getStats: ۶ count queries موازی + groupBy channel + aggregate durationMs + successRate (sent/(sent+failed)*100 rounded to 2 decimals, 0 if no sent+failed) + avgDeliveryMs (null if no sent deliveries)
+- preference-service: getOrCreate با schema defaults + update با upsert + outbox notification.preference.updated (LAW-08)
+- تست‌های E2E با bun runtime روی SQLite واقعی sandbox:
+  • Smoke test: تمام public exports load می‌شوند، DEFAULT_PROVIDERS درست است، listProviders هر ۵ channel درست برمی‌گرداند، getProvider با fallback درست کار می‌کند
+  • Deterministic failure oracle: ۲۰۰ نمونه → ۲۰ failure (10.0%) — re-run همان failing combo همان نتیجه را می‌دهد
+  • dispatch + idempotent re-dispatch: همان notificationId برگردانده می‌شود، created=false
+  • getById: template/queueItems/deliveries همگی include می‌شوند
+  • processQueueItem (inapp): status=sent، delivery با provider=inapp_db/attempt=1/durationMs=0، messageId با prefix 'inapp-'
+  • processQueueItem دوباره روی sent: skip (already_locked_or_in_dlq)
+  • cancel روی sent: throw NOTIFICATION_TERMINAL
+  • Failure path کامل: dispatch → attempt 1 fail (retrying, 60s backoff) → attempt 2 fail (retrying, 300s backoff) → manual reset to attempt=4 → attempt 5 fail (dead_lettered, inDeadLetter=true, deadLetterReason=errorMessage) → retry() → status=queued, attempt=0, inDeadLetter=false
+  • NotFoundException روی template code ناموجود با code='NOT_FOUND' و message='NOTIFICATION_TEMPLATE not found: ...'
+  • PreferenceService: getOrCreate با defaults (whatsapp=false، بقیه true، fa) → same row on second call → update whatsapp=true, language=en, quietHours
+  • getStats: byChannel, successRate, avgDeliveryMs همگی درست محاسبه می‌شوند
+- اجرای tsc --noEmit: ۱۲۷ خطای TS در کل پروژه (همان baseline از Task 3) — **صفر خطا** در فایل‌های notification module
+- اجرای bun run lint: EXIT_CODE=0 (project-wide clean)
+
+Files Created:
+1. /home/z/my-project/src/lib/modules/notification/services/types.ts (~ 135 خط)
+   • Channel, NotificationStatus, DeliveryStatus
+   • ChannelProvider interface + ChannelSendInput/ChannelSendResult
+   • DispatchInput + DispatchResult
+2. /home/z/my-project/src/lib/modules/notification/services/providers.ts (~ 270 خط)
+   • ۱۰ کلاس provider (smtp/ses/sendgrid/kavenegar/melipayamak/twilio/evolution/meta_cloud/firebase/inapp_db)
+   • PROVIDERS registry + DEFAULT_PROVIDERS + getProvider + listProviders
+   • FNV-1a deterministic failure oracle (10% threshold، reproducible)
+   • simulateSend helper با random 10–50ms delay + console.log
+3. /home/z/my-project/src/lib/modules/notification/services/notification-service.ts (~ 590 خط)
+   • NotificationService class با ۷ متد public
+   • findTemplate private helper با language fallback
+   • unlockQueueItem private helper برای skip paths
+   • BACKOFF_SCHEDULE_SECONDS = [60, 300, 1800, 7200]
+   • DEFAULT_MAX_ATTEMPTS = 5
+4. /home/z/my-project/src/lib/modules/notification/services/preference-service.ts (~ 125 خط)
+   • PreferenceService class با getOrCreate + update
+   • PreferenceUpdateInput interface
+   • upsert با conditional field update (فقط فیلدهای present در input)
+
+Files Modified:
+5. /home/z/my-project/src/lib/modules/notification/index.ts
+   • اضافه شدن export * از types/providers/notification-service/preference-service
+   • اضافه شدن singletons: notificationService, preferenceService
+   • به‌روزرسانی JSDoc برایReflect کردن exports جدید
+
+Public Exports (از barrel notification/index.ts):
+- Types: Channel, NotificationStatus, DeliveryStatus, ChannelProvider, ChannelSendInput, ChannelSendResult, DispatchInput, DispatchResult, PreferenceUpdateInput
+- Functions: renderTemplate, renderString, validateTemplate, getProvider, listProviders
+- Constants: DEFAULT_PROVIDERS
+- Classes: NotificationService, PreferenceService
+- Singletons: notificationService, preferenceService
+
+Stage Summary:
+- ✅ ۵ فایل (۴ جدید + ۱ به‌روزرسانی) با مجموع ~ ۱۱۲۰ خط TypeScript تمیز
+- ✅ tsc --noEmit: صفر خطا در فایل‌های notification (baseline ۱۲۷ خطای pre-existing پروژه بدون تغییر)
+- ✅ bun run lint: EXIT_CODE=0 (project-wide clean)
+- ✅ ۸ سناریوی E2E با bun runtime روی SQLite واقعی همگی PASS: dispatch/idempotency، getById، processQueueItem success، processQueueItem skip on terminal، cancel/throw، failure→retrying→DLQ، manual retry، preference getOrCreate/update، NotFound exception
+- ✅ Deterministic failure oracle تأیید شد: 10.0% failure rate (20/200) — reproducible
+- ✅ LAW-55 (template-based): snapshot templateCode/Version/language در زمان dispatch، fallback زبان
+- ✅ LAW-56 (channel-agnostic): ChannelProvider interface + ۱۰ provider + getProvider default fallback
+- ✅ LAW-57 (retryable + idempotent): idempotencyKey unique constraint + P2002 race-handling + conditional lock + backoff schedule + DLQ + manual retry
+- ✅ LAW-08 (outbox): هر state change در یک UnitOfWork با outbox event (notification.created/queued/sent/failed/retrying/cancelled/retried/preference.updated)
+- آماده برای task‌های بعدی Sprint 7.3: API routes (POST /notifications/dispatch، GET /notifications، GET /notifications/:id، POST /notifications/:id/cancel، POST /notifications/:id/retry، POST /notifications/preferences، GET /notifications/stats)، queue worker cron adapter، routing policy که NotificationPreference را برای انتخاب channel/languageconsult می‌کند
+
+---
+
+Task ID: 5
+Agent: Subagent — Notification API Routes
+Task: Sprint 7.3 (Notification Center) — Notification API Routes (LAW-55/56/57)
+
+Work Log:
+- مطالعه worklog.md برای درک تاریخچه پروژه (Tasks 1–4: Business Analysis → Schema → Template Engine → Notification Services)
+- مطالعه فایل‌های زیر برای درک کنوانسیون پروژه و الگوهای موجود:
+  • src/lib/api-helpers.ts — getTenantId / jsonResponse / errorResponse / parseQueryParams
+  • src/lib/shared/index.ts — barrel: exceptions + UnitOfWork + IdempotencyHelper + OutboxHelper + laws 1..57
+  • src/lib/shared/infra/idempotency-helper.ts — IdempotencyHelper.check/store (header-based, sha256 body hash, 24h TTL, P2002 swallow)
+  • src/lib/shared/infra/unit-of-work.ts — UnitOfWork.execute + OutboxHelper.append API
+  • src/lib/shared/exceptions/{domain,not-found,validation}-exception.ts — exception signatures
+  • src/lib/modules/notification/services/notification-service.ts — تأیید signature های dispatch/processQueueItem/cancel/retry/list/getById/getStats
+  • src/lib/modules/notification/services/preference-service.ts — getOrCreate / update با outbox
+  • src/lib/modules/notification/services/template-engine.ts — renderTemplate / validateTemplate / TemplateInput / RenderResult
+  • src/lib/modules/notification/services/types.ts — Channel / NotificationStatus / DispatchInput / DispatchResult / PreferenceUpdateInput
+  • src/lib/modules/notification/index.ts — barrel + singletons (notificationService, preferenceService) + type re-exports
+  • prisma/schema.prisma (lines 2245–2370) — ۵ مدل Notification* با فیلدها، relations، @@unique ها
+  • src/app/api/v1/rule-sets/route.ts — الگوی GET list + POST create با idempotency + toDTO
+  • src/app/api/v1/rule-sets/[id]/publish/route.ts — الگوی POST state change با UoW + outbox
+  • src/app/api/v1/rules/evaluate/route.ts — الگوی POST با UoW + Outbox + IdempotencyHelper
+  • src/app/api/v1/workflow/instances/route.ts — الگوی list/start
+  • src/app/api/v1/workflow/instances/[id]/route.ts و transition/route.ts — الگوی [id] dynamic route
+  • package.json → Next.js ^16.1.1 (params باید Promise باشد)، next.config.ts → typescript.ignoreBuildErrors=true، eslint.config.mjs → rules بسیار lenient (no-explicit-any off, no-unused-vars off, ...)
+- ایجاد ساختار پوشه‌ای جدید برای Notification API (همه ۱۶ فایل route.ts):
+  • src/app/api/v1/notification/templates/ (route.ts + [id]/route.ts + [id]/publish/route.ts + [id]/preview/route.ts + [id]/versions/route.ts + seed-defaults/route.ts)
+  • src/app/api/v1/notifications/ (route.ts + [id]/route.ts + send/route.ts + [id]/retry/route.ts + [id]/cancel/route.ts + stats/route.ts)
+  • src/app/api/v1/notification-preferences/ (route.ts + [userId]/route.ts)
+  • src/app/api/v1/notification-queue/ (route.ts + process/route.ts)
+- پیاده‌سازی هر route با کنوانسیون‌های پروژه:
+  • try/catch با DomainException → errorResponse({ code, message, statusCode, errors })؛ fallback → INTERNAL_ERROR/500
+  • POST/PUT → IdempotencyHelper.check در ابتدا، IdempotencyHelper.store قبل از return
+  • GET list → parseQueryParams برای pagination + meta { page, per_page, total, last_page }
+  • getTenantId() همیشه اولین فراخوانی
+  • dynamic [id]/[userId] با signature `{ params }: { params: Promise<{ id: string }> }` و await params (Next.js 16)
+- جزئیات هر route:
+  A) Templates:
+    1. GET /api/v1/notification/templates — list با فیلترهای status/channel/language/code + _count.notifications + order createdAt DESC
+    2. POST /api/v1/notification/templates — create draft با validation (code/name/bodyTemplate/channel/language required، channel ∈ {email,sms,whatsapp,push,inapp}، language ∈ {fa,en,ar,ku}، email → subjectTemplate required)، validateTemplate → warnings (non-blocking)، status='draft', version=1
+    3. POST /api/v1/notification/templates/[id]/publish — UoW: throw NotFound اگر not draft → set status='published', publishedAt=now → updateMany siblings (same code+language+channel, status='published', id != this) set effectiveTo=now (audit history preserved — status تغییر نمی‌کند) → outbox 'notification_template.published'
+    4. POST /api/v1/notification/templates/[id]/preview — renderTemplate با body variables + validateTemplate روی subject و body (no DB write)
+    5. GET /api/v1/notification/templates/[id]/versions — list همه version های همان code+language+channel (order version DESC) + _count
+    6. GET /api/v1/notification/templates/[id] — get one با _count.notifications
+    7. POST /api/v1/notification/templates/seed-defaults — seed ۵ template پیش‌فرض Sprint spec به‌صورت published (idempotent با header + internal pre-check existing تکراری skip می‌شود):
+       • invoice.issued (email/fa) — subject: "فاکتور {{invoice.number}} صادر شد" — body با customer.name, invoice.number, invoice.total, company.name, currentDate
+       • payment.received (sms/fa) — body: "پرداخت {{invoice.total}} تومان برای فاکتور {{invoice.number}} دریافت شد. {{company.name}}"
+       • shipment.delivered (whatsapp/fa) — body با trackingCode, customer.name, currentDate
+       • service_order.ready (push/fa) — body با service.number, customer.name
+       • warranty.claim.approved (email/fa) — subject: "درخواست گارانتی شما تأیید شد" — body با customer.name, warranty.expiry, trackingCode, company.name
+       هر کدام با variablesSchema (description/name/type/required برای هر variable) + description
+  B) Notifications:
+    1. GET /api/v1/notifications — list با filters (status, channel, recipientId) + deliveryCount
+    2. GET /api/v1/notifications/[id] — getById با deliveries (order attempt ASC) + queueItems (order createdAt ASC) + template (id/code/version/name/language/channel)
+    3. POST /api/v1/notifications/send — dispatch: validation (templateCode + recipientAddress + variables required) → compute idempotencyKey (body.idempotencyKey یا `${templateCode}#${recipientId ?? recipientAddress}#${triggeredByEvent ?? 'manual'}#${JSON.stringify(variables)}`) → notificationService.dispatch → 201 اگر created، 200 اگر idempotent hit
+    4. POST /api/v1/notifications/[id]/retry — notificationService.retry(id) → 200 با { status: 'queued' }
+    5. POST /api/v1/notifications/[id]/cancel — validation (cancelledBy + reason required) → notificationService.cancel(id, cancelledBy, reason) → 200
+    6. GET /api/v1/notifications/stats — notificationService.getStats(tenantId) → { queued, sending, sentToday, failed, retrying, dlq, byChannel, successRate, avgDeliveryMs }
+  C) Preferences:
+    1. GET /api/v1/notification-preferences — list all یا get-or-create one با ?userId=xxx
+    2. GET /api/v1/notification-preferences/[userId] — getOrCreate (defaults: all channels on except whatsapp=false, language='fa')
+    3. PUT /api/v1/notification-preferences/[userId] — update با whitelist (emailEnabled/smsEnabled/pushEnabled/whatsappEnabled/inappEnabled/language/quietHoursStart/quietHoursEnd) + language validation (fa/en/ar/ku)
+  D) Queue:
+    1. GET /api/v1/notification-queue — list با status filter (dlq/ready/locked/pending) + include notification (id/status/channel/recipientAddress/templateCode) + order priority DESC, nextRetryAt ASC + computed status per item
+    2. POST /api/v1/notification-queue/process — find ready items (inDeadLetter=false, lockedBy=null, nextRetryAt<=now) order priority DESC, nextRetryAt ASC, LIMIT batchSize (default 10, max 100) → processQueueItem per item → results [{ queueItemId, notificationId, status, message? }] + workerId (default `worker-${randomUUID()}`)
+- اجرای tsc --noEmit: ۱۲۷ خطای TS در کل پروژه (همان baseline از Task 3/4) — **صفر خطا در فایل‌های جدید notification** (تأیید با `rg "notification" → exit_code=1`)
+- اجرای bun run lint: **EXIT_CODE=0** (project-wide clean، شامل فایل‌های جدید)
+- تأیید Next.js 16 RouteHandlerConfig: هیچ خطای validator.ts برای route های جدید notification تولید نشد (به‌لطف استفاده از `params: Promise<{ id: string }>` و await). این برعکس route های قدیمی است که با `params: { id: string }` (non-Promise) در validator.ts خطا تولید می‌کنند — اما این خطاها pre-existing هستند و مربوط به این task نیستند.
+
+Files Created (16 route files):
+1.  /home/z/my-project/src/app/api/v1/notification/templates/route.ts                    (GET list + POST create)
+2.  /home/z/my-project/src/app/api/v1/notification/templates/[id]/route.ts               (GET one)
+3.  /home/z/my-project/src/app/api/v1/notification/templates/[id]/publish/route.ts       (POST publish — UoW + outbox)
+4.  /home/z/my-project/src/app/api/v1/notification/templates/[id]/preview/route.ts       (POST preview — renderTemplate + validateTemplate, no DB write)
+5.  /home/z/my-project/src/app/api/v1/notification/templates/[id]/versions/route.ts      (GET versions — same code+language+channel)
+6.  /home/z/my-project/src/app/api/v1/notification/templates/seed-defaults/route.ts      (POST seed 5 default templates as published)
+7.  /home/z/my-project/src/app/api/v1/notifications/route.ts                             (GET list)
+8.  /home/z/my-project/src/app/api/v1/notifications/[id]/route.ts                        (GET one — deliveries + queueItems + template)
+9.  /home/z/my-project/src/app/api/v1/notifications/send/route.ts                        (POST dispatch — LAW-55/57, 201 if created / 200 if idempotent)
+10. /home/z/my-project/src/app/api/v1/notifications/[id]/retry/route.ts                  (POST retry)
+11. /home/z/my-project/src/app/api/v1/notifications/[id]/cancel/route.ts                 (POST cancel)
+12. /home/z/my-project/src/app/api/v1/notifications/stats/route.ts                       (GET stats)
+13. /home/z/my-project/src/app/api/v1/notification-preferences/route.ts                  (GET list or single by ?userId=)
+14. /home/z/my-project/src/app/api/v1/notification-preferences/[userId]/route.ts         (GET get-or-create + PUT update)
+15. /home/z/my-project/src/app/api/v1/notification-queue/route.ts                        (GET list — derived status filter)
+16. /home/z/my-project/src/app/api/v1/notification-queue/process/route.ts                (POST process batch — cron-style)
+
+Stage Summary:
+- ✅ ۱۶ فایل route.ts ایجاد شد (تمام endpoint های spec پوشش داده شد)
+- ✅ tsc --noEmit: صفر خطا در فایل‌های جدید (baseline ۱۲۷ خطای pre-existing پروژه بدون تغییر)
+- ✅ bun run lint: EXIT_CODE=0 (project-wide clean)
+- ✅ Next.js 16 RouteHandlerConfig: route های جدید از `params: Promise<{ id: string }>` استفاده می‌کنند — هیچ خطای validator.ts برای notification route ها تولید نشد
+- ✅ LAW-55 (template-based): create/publish/preview/versions/seed-defaults + dispatch با snapshot templateCode/Version/language
+- ✅ LAW-56 (channel-agnostic): validation channel ∈ {email,sms,whatsapp,push,inapp} در create template و در dispatch؛ preference routes برای opt-in/opt-out per channel
+- ✅ LAW-57 (retryable + idempotent): send route با idempotencyKey derivation (deterministic) + IdempotencyHelper.check/store + 201/201 distinction؛ retry/cancel/process endpoints
+- ✅ LAW-08 (outbox): publish route در UoW با outbox event 'notification_template.published' (همان الگوی rule-sets publish)
+- ✅ Idempotency در تمام POST/PUT (IdempotencyHelper.check + store)
+- ✅ Conventions پیروی شد: try/catch → DomainException → errorResponse، getTenantId اول، parseQueryParams برای pagination، toDTO برای response shaping
+- آماده برای task‌های بعدی Sprint 7.3: queue worker cron adapter (می‌تواند POST /api/v1/notification-queue/process را به‌صورت scheduled اجرا کند)، routing policy که NotificationPreference را برای انتخاب channel/language consult می‌کند، UI pages که از این endpoint ها استفاده می‌کنند
+
+---
+
+Task ID: 7-a
+Agent: Subagent — Notification Dashboard View
+Task: Sprint 7.3 — Build Notification Dashboard UI view (first client-facing surface for the Notification Center)
+
+Work Log:
+- مطالعه worklog.md (تاریخچه Tasks 1-6 و Sprint 7.3 Task 6 — API routes + api-client extension)
+- مطالعه integration-view.tsx برای استخراج conventions تثبیت‌شده RTL: 'use client'، Card/CardContent/CardHeader/CardTitle، Badge، Button، Loader2، toast از 'sonner'، Tailwind grid `grid-cols-2 md:grid-cols-4 gap-4`، max-h-[200px] overflow-y-auto، emerald/teal/red/amber colors، NO indigo/blue (except icon-only)
+- مطالعه api-client.ts lines 852-1110 برای امضای دقیق notification APIs:
+  • notificationTemplatesApi.seedDefaults(idempotencyKey?) → POST /notification/templates/seed-defaults (idempotent، silent failure OK)
+  • notificationTemplatesApi.list({ perPage, status, ... }) → PaginatedResponse<NotificationTemplate>
+  • notificationsApi.stats() → { data: NotificationStats } با queued/sending/sentToday/failed/retrying/dlq/byChannel/successRate/avgDeliveryMs
+  • notificationsApi.list({ perPage }) → PaginatedResponse<Notification>
+  • notificationsApi.send({ templateCode, recipientAddress, variables }, idempotencyKey?) → { data: { notificationId, status, created, message? } }
+  • notificationQueueApi.process({ batchSize, workerId }, idempotencyKey?) → { data: { processed, results } }
+- مطالعه warranty-view.tsx برای الگوی Dialog کنترل‌شده با open state + onOpenChange + DialogDescription/Footer/Header
+- مطالعه eslint.config.mjs: تمام rule های سختگیرانه (no-explicit-any، no-unused-vars، react-hooks/exhaustive-deps) خاموش هستند → انعطاف در نوشتن کد
+- ایجاد فایل `/home/z/my-project/src/components/views/notification-dashboard-view.tsx` (۵۷۴ خط)
+- اجرای `bun run lint`: EXIT_CODE=0 (project-wide clean، هیچ خطایی در فایل جدید)
+- اجرای `npx tsc --noEmit | grep notification-dashboard`: خروجی خالی → صفر خطای TS در فایل جدید
+
+Design Decisions:
+1. **Auto-seed on mount** با useRef flag (seededRef): یک‌بار در طول lifecycle کامپوننت، `seedDefaults('auto-seed-on-mount-v1')` صدا زده می‌شود. failure به‌صورت silent نادیده گرفته می‌شود (idempotent است). پس از آن `load()` صدا زده می‌شود که stats + recent را parallel بارگذاری می‌کند.
+2. **۶ Stats Cards** در grid `grid-cols-2 md:grid-cols-3 lg:grid-cols-6`:
+   • Queued (Clock/amber)، Sending (Send/blue-icon-only با bg-muted)، Sent Today (CheckCircle/emerald)، Failed (XCircle/red)، Retrying (RotateCw/orange)، DLQ (AlertTriangle/red)
+   • هر کارت با subtle background tint (به جز blue که فقط آیکن آبی دارد، پس‌زمینه neutral bg-muted/40 — رعایت قانون NO blue backgrounds)
+3. **۲ کارت کنار هم (lg:grid-cols-2)**:
+   • Left "نرخ موفقیت و عملکرد": big successRate% با progress bar emerald→teal gradient، avgDeliveryMs (یا "—" اگه null)، breakdown by channel به‌صورت ۵ ردیف با Badge outline
+   • Right "توزیع کانال‌ها": برای هر کانال horizontal bar با width % نسبت به max channel count، با رنگ متمایز (emerald/teal/lime/amber/rose — رعایت قانون NO blue/indigo برای bar fills)
+4. **Quick Actions (۳ button)**: پردازش صف (Zap، batchSize:20، toast با processed count)، بارگذاری مجدد آمار (RefreshCw)، ارسال اعلان آزمایشی (Plus → باز کردن Dialog)
+5. **Recent Notifications table**: ۸ اعلان آخر (notificationsApi.list({ perPage: 8 }))، ستون‌ها: templateCode (font-mono)، channel (با icon + label)، recipientAddress (truncate به ۲۴ کاراکتر، dir=ltr)، status (Badge با variant رنگی)، createdAt (relative time Persian با timeAgo helper)
+6. **SendTestDialog** (sub-component): بارگذاری published templates از notificationTemplatesApi.list، Select شادcn برای انتخاب قالب، Input برای recipient address (dir=ltr)، Textarea برای JSON variables (default با ۸ کلید: customer/invoice/company/currentDate/trackingCode/warranty/service + templateCodeهای مرتبط با seed-defaults)، validation: JSON.parse با try/catch → toast error، idempotencyKey از crypto.randomUUID()، onSuccess → toast.success (created) یا toast.message (idempotent hit با alreadyExisting)، سپس onSent که stats + recent را reload می‌کند
+7. **Persian labels**: CHANNEL_LABELS (ایمیل/پیامک/واتساپ/پوش/درون‌برنامه‌ای)، STATUS_LABELS (در انتظار/در صف/در حال ارسال/...), timeAgo با toLocaleString('fa-IR') برای اعداد فارسی
+8. **Law Info Card** در انتها (bg-emerald-50) با توضیح LAW-55/56/57
+9. **Helper functions**: timeAgo، isApiError (type guard برای ApiError)، statusBadgeVariant (sent→default، failed→destructive، cancelled→outline، بقیه→secondary)، truncate
+
+Files Created:
+1. /home/z/my-project/src/components/views/notification-dashboard-view.tsx (574 lines)
+
+Stage Summary:
+- ✅ فایل dashboard view ایجاد شد با تمام ۵ بخش موردنظر spec: ۶ stats cards، ۲ side-by-side cards (success rate + channel distribution)، quick actions (۳ button)، recent notifications table، send-test dialog
+- ✅ Auto-seed on mount با useRef flag (idempotent، silent failure)
+- ✅ bun run lint: EXIT_CODE=0 (project-wide clean)
+- ✅ npx tsc --noEmit: صفر خطای TS در فایل جدید
+- ✅ RTL Persian UI با تمام labels فارسی و اعداد فارسی (toLocaleString('fa-IR'))
+- ✅ Color convention رعایت شد: emerald/teal/red/amber/orange برای backgrounds و bar fills؛ blue فقط برای آیکن Sending (با bg-muted/40 neutral)
+- ✅ shadcn/ui components استفاده شد: Card، Badge، Button، Input، Label، Textarea، Select، Dialog
+- ✅ LAW-55/56/57 در Law Info card در پایین view مستند شده
+- ✅ Idempotency در Process Queue و Send Test Notification (crypto.randomUUID() به‌عنوان Idempotency-Key header)
+- ✅ Error handling با toast.error + ApiError type guard برای استخراج detail message
+- آماده برای task‌های بعدی Sprint 7.3: wiring این view به navigation/menu، template management view (CRUD templates)، queue monitor view (DLQ inspection + manual retry)، preferences view (per-user channel opt-in/opt-out)
+
+---
+
+Task ID: 7-b
+Agent: Subagent — Notification Templates View
+Task: Sprint 7.3 (Notification Center) — Build Notification Templates CRUD management view (LAW-55)
+
+Work Log:
+- مطالعه worklog.md (تاریخچه Tasks 1-7a) برای درک context و conventions تثبیت‌شده در پروژه
+- مطالعه integration-view.tsx و notification-dashboard-view.tsx برای استخراج conventions RTL: 'use client'، Card/Badge/Button، Loader2، toast از 'sonner'، MaxHeight overflow-y-auto، Law Info card پایین با bg-emerald-50، NO indigo/blue backgrounds، زمان‌نمای فارسی با toLocaleString('fa-IR')
+- مطالعه api-client.ts lines 852-1110 برای امضای دقیق notification templates API:
+  • notificationTemplatesApi.list({ page, perPage, status, channel, language, code }) → PaginatedResponse<NotificationTemplate>
+  • notificationTemplatesApi.create({ code, name, channel, language, subjectTemplate?, bodyTemplate, variablesSchema?, description? }, idempotencyKey?) → { data, warnings?: string[] }
+  • notificationTemplatesApi.publish(id, idempotencyKey?) → { data: NotificationTemplate }
+  • notificationTemplatesApi.preview(id, variables, idempotencyKey?) → { data: { subject, body, warnings, issues } }
+  • notificationTemplatesApi.versions(id) → { data: NotificationTemplate[] }
+  • notificationTemplatesApi.seedDefaults(idempotencyKey?) → { data: { seeded, alreadySeeded, message? } }
+  • PaginatedResponse<T> = { data: T[], meta: { page, per_page, total, last_page } }
+  • ApiError = { type, title, status, detail, code, correlation_id, timestamp, errors? } → isApiError type guard با 'detail' in e && 'status' in e
+- مطالعه eslint.config.mjs: تمام rule های سختگیرانه (no-explicit-any, no-unused-vars, react-hooks/exhaustive-deps) خاموش → انعطاف در پیاده‌سازی
+- ایجاد فایل `/home/z/my-project/src/components/views/notification-templates-view.tsx` (~۱۰۹۵ خط)
+- اجرای `bun run lint`: EXIT_CODE=0 (project-wide clean، هیچ خطایی در فایل جدید)
+- اجرای `npx tsc --noEmit | grep notification-templates-view`: خروجی خالی → صفر خطای TS در فایل جدید
+
+Design Decisions:
+1. **Header**: عنوان «مدیریت الگوهای اعلان» + subtitle «Sprint 7.3 — LAW-55: نسخه‌بندی‌شده و چندزبانه» + سه action button: ایجاد الگوی جدید (Plus)، بذرگیری الگوهای پیش‌فرض (Sparkles با Loader2 هنگام processing)، بارگذاری مجدد (RefreshCw با animate-spin هنگام loading)
+2. **Filter Bar** (grid lg:grid-cols-4): Select برای Status (همه/پیش‌نویس/منتشر شده/غیرفعال)، Select برای Channel با icon هر کانال (Mail/MessageSquare/Phone/Smartphone/Bell)، Select برای Language (fa/en/ar/ku)، Input + Button برای جستجوی code. هر filter change با handler `handleResetPageAnd` صفحه را به ۱ بازنشانی می‌کند (batched در یک handler → یک re-render).
+3. **Templates Table**: ۸ ستون (الگو=code+name، کانال=icon+label، زبان=Badge outline، نسخه=Badge secondary با font-mono، وضعیت=custom pill با STATUS_TINT: draft=amber/published=emerald/disabled=gray، تعداد اعلان=centered font-mono، ایجاد=timeAgo فارسی، عملیات=DropdownMenu). Row actions شامل: View/Edit (Eye)، Preview (Send)، Versions (History)، و در صورت draft بودن با separator: Publish (CheckCircle با text-emerald-600).
+4. **Pagination**: نمایش "page X از Y" در CardDescription و footer با ۲ Button outline (قبلی با ChevronRight، بعدی با ChevronLeft — در RTL قبلی سمت راست و بعدی سمت چپ). disabled وقتی page<=1 یا page>=lastPage.
+5. **Loading Skeleton**: ۶ ردیف با h-12 rounded-md bg-muted/40 animate-pulse هنگام loading.
+6. **EditorDialog** (sub-component): form با code, name, channel, language, subject (disabled وقتی channel!=email با helper text «بدون موضوع برای کانال‌های غیر ایمیل»)، body (Textarea font-mono ۸ ردیف)، description، variablesSchema (Textarea JSON با placeholder `[{"name":"customer.name","type":"string","required":true}]`). Collapsible «راهنمای سینتکس قالب» با ۴ راهنما (متغیر، شرطی، حلقه، @index/@first/@last) — هر کدام با code block با bg-emerald-50 و dir=ltr. در submit: validation → JSON.parse variablesSchema → notificationTemplatesApi.create با crypto.randomUUID() → toast.success + نمایش warnings (در صورت وجود) با toast.warning → close + reload. اگر initial passed (از View/Edit)، فیلدها prefill می‌شوند و label به «ویرایش الگو (ایجاد نسخه جدید)» تغییر می‌کند — چون API فقط create دارد نه update، edit عملاً ایجاد یک الگوی جدید با همان code است.
+7. **PreviewDialog** (sub-component): Textarea JSON با DEFAULT_PREVIEW_VARIABLES (۸ کلید: customer/invoice/company/currentDate/trackingCode/warranty/service + templateCodeهای seed-defaults) → Button «پیش‌نمایش» با crypto.randomUUID() → نمایش validation issues در box amber، warnings در box orange، subject رندر شده در box muted، body رندر شده در pre با font-mono whitespace-pre-wrap dir=auto. اگر issues و warnings خالی باشد: note موفقیت emerald با CheckCircle.
+8. **VersionsDialog** (sub-component): useEffect برای fetch versions(template.id) → timeline list با version badge، status pill، «نسخه جاری» badge برای آیتمی که id آن با template.id مطابقت دارد (highlight با border-emerald-300 bg-emerald-50)، نمایش effectiveFrom، effectiveTo (یا «تا اکنون»)، publishedAt در صورت وجود. همه تاریخ‌ها با toLocaleString('fa-IR') و dir=ltr.
+9. **Publish Confirm Dialog**: AlertTriangle amber در title، DialogDescription «آیا از انتشار این الگو مطمئن هستید؟ نسخه‌های قبلی منتشر شده غیرفعال خواهند شد.»، خلاصه اطلاعات الگو (code/name/version/channel) در box muted، Button انتشار با bg-emerald-600 hover:bg-emerald-700 → handlePublish با crypto.randomUUID() → toast.success + reload.
+10. **Law Info Card** پایین (bg-emerald-50 border-emerald-200): LAW-55 و Idempotency (crypto.randomUUID برای create/publish/preview).
+11. **State management**: useState برای filters (statusFilter/channelFilter/languageFilter/search/searchInput)، pagination (page)، dialog state (editorOpen/editorInitial/previewTemplate/versionsTemplate/publishTemplate)، action flags (seeding/publishing). useCallback برای load با deps [page, statusFilter, channelFilter, languageFilter, search]. useEffect برای load on dependency change. handleResetPageAnd برای batch page reset + filter change.
+12. **Error handling**: try/catch با isApiError type guard → toast.error با detail message؛ fallback پیام فارسی عمومی.
+
+Files Created:
+1. /home/z/my-project/src/components/views/notification-templates-view.tsx (~۱۰۹۵ خط)
+
+Stage Summary:
+- ✅ فایل notification-templates-view.tsx ایجاد شد با تمام ۷ بخش موردنظر spec: Header با ۳ action، Filter Bar با ۴ فیلتر، Templates Table با ۸ ستون + DropdownMenu actions، Editor Dialog با form کامل + Collapsible hints، Preview Dialog با JSON + rendered output + issues/warnings، Versions Dialog با timeline، Publish Confirm Dialog
+- ✅ bun run lint: EXIT_CODE=0 (project-wide clean)
+- ✅ npx tsc --noEmit: صفر خطای TS در فایل جدید (grep خروجی خالی)
+- ✅ RTL Persian UI با تمام labels فارسی و اعداد فارسی (toLocaleString('fa-IR'))
+- ✅ Color convention رعایت شد: amber برای draft، emerald برای published، gray برای disabled (custom CSS pills)، orange برای warnings، amber برای issues، emerald برای success note — هیچ background indigo/blue استفاده نشد
+- ✅ shadcn/ui components استفاده شد: Card، CardContent، CardHeader، CardTitle، CardDescription، Badge، Button، Input، Label، Textarea، Select، Dialog، DropdownMenu، Table، Collapsible
+- ✅ Idempotency در create/publish/preview/seed (همگی با crypto.randomUUID() به‌عنوان Idempotency-Key header)
+- ✅ Helper maps پیاده‌سازی شد: CHANNEL_LABELS، CHANNEL_ICONS، STATUS_LABELS، STATUS_TINT (custom colors per spec)، LANGUAGE_LABELS، timeAgo (Persian relative time)، isApiError (type guard)
+- ✅ LAW-55 (template-based + versioned + multilingual) مستند در Law Info card پایین
+- ✅ Pagination RTL با ChevronRight برای قبلی و ChevronLeft برای بعدی (مطابق direction خواندن RTL)
+- ✅ Error handling یکنواخت با toast.error و ApiError type guard
+- آماده برای task‌های بعدی Sprint 7.3: wiring این view به navigation/menu، queue monitor view، preferences view، یا integration با notification dashboard view موجود
+
+---
+
+Task ID: 7-c
+Agent: Subagent — Notifications View
+Task: Sprint 7.3 (Notification Center) — Build Notifications Monitoring view (list + detail + queue/DLQ + send/retry/cancel) — LAW-56/57
+
+Work Log:
+- مطالعه worklog.md (تاریخچه Tasks 1-7b) برای درک context و conventions تثبیت‌شده در پروژه
+- مطالعه integration-view.tsx و notification-templates-view.tsx برای استخراج conventions RTL: 'use client'، Card/Badge/Button، Loader2 spinner، toast از 'sonner'، DropdownMenu با StopRowClick، Tabs/ScrollArea/Separator، Table shadcn، NO indigo/blue backgrounds، زمان فارسی با toLocaleString('fa-IR')، Law Info card پایین با bg-emerald-50
+- مطالعه api-client.ts lines 852-1110 برای امضای دقیق notification APIs:
+  • notificationsApi.list({ page, perPage, status, channel, recipientId }) → PaginatedResponse<Notification>
+  • notificationsApi.get(id) → { data: Notification } (شامل deliveries[] و queueItems[] و template)
+  • notificationsApi.send(data, idempotencyKey?) → { data: { notificationId, status, created, message? } }
+  • notificationsApi.retry(id, idempotencyKey?) → { data: { id, status, message } }
+  • notificationsApi.cancel(id, { reason, cancelledBy }, idempotencyKey?) → { data: { id, status } }
+  • notificationsApi.stats() → { data: NotificationStats }
+  • notificationQueueApi.list({ status: 'dlq'|'ready'|'locked'|'pending' }) → PaginatedResponse<NotificationQueueList>
+  • notificationQueueApi.process({ batchSize, workerId }, idempotencyKey?) → { data: { processed, results } }
+  • notificationTemplatesApi.list({ perPage, status }) → PaginatedResponse<NotificationTemplate>
+  • PaginatedResponse<T> = { data: T[], meta: { page, per_page, total, last_page } }
+  • ApiError = { type, title, status, detail, code, correlation_id, timestamp, errors? } → isApiError type guard با 'detail' in e && 'status' in e
+- مطالعه eslint.config.mjs: rule جدید `react-hooks/set-state-in-effect` فعال است (نسبت به Task 7b) → نباید setState مستقیماً داخل useEffect body صدا زد. راه‌حل: استفاده از key-based remount برای SendDialog به جای useEffect برای reset form state
+- ایجاد فایل `/home/z/my-project/src/components/views/notifications-view.tsx` (۱۴۰۹ خط)
+- اجرای `bun run lint`: ابتدا ۱ خطا روی useEffect در SendDialog (setState in effect) → رفع با key-based remount pattern (sendDialogKey state که با هر بار باز کردن dialog افزایش می‌یابد و SendDialog با key متفاوت fresh mount می‌شود). اجرای مجدد: EXIT_CODE=0 (project-wide clean)
+- اجرای `npx tsc --noEmit | grep notifications-view`: خروجی خالی → صفر خطای TS در فایل جدید
+
+Design Decisions:
+1. **Header**: عنوان «مرکز اعلان‌ها» + subtitle «Sprint 7.3 — LAW-56/57: ارسال کانال‌اگنوستیک + Idempotent» + دو action button: ارسال اعلان جدید (Plus با key-bump + setSendOpen)، بارگذاری مجدد (RefreshCw با animate-spin هنگام loading)
+2. **Two-column layout** (grid-cols-1 lg:grid-cols-3):
+   • Left (col-span-2): Card با Notifications list + filter bar + table + pagination
+   • Right (col-span-1): Card با Queue + DLQ monitor با Tabs
+3. **Filter Bar** (در CardHeader): Select برای Status (۸ گزینه: همه/در انتظار/در صف/در حال ارسال/ارسال شد/خطا/تلاش مجدد/لغو شد) و Select برای Channel (۶ گزینه: همه/ایمیل/پیامک/واتساپ/پوش/درون‌برنامه‌ای). هر filter change با resetPageAnd صفحه را به ۱ بازمی‌گرداند. CardDescription نمایش "X اعلان • صفحه Y از Z".
+4. **Notifications Table** (۶ ستون): الگو (templateCode با font-mono + version badge)، کانال (ChannelBadge با icon + label)، گیرنده (recipientName + recipientAddress truncate 28 با dir=ltr)، وضعیت (StatusBadge با variant رنگی)، ایجاد (timeAgo فارسی)، عملیات (DropdownMenu با Activity icon). Row click → openDetail. Row actions شامل: View Details (Eye)، Retry (RotateCw، فقط اگر failed/retrying)، Cancel (Ban با text-red-600، فقط اگر pending/queued/sending/retrying). TableCell عملیات با onClick={e => e.stopPropagation()} برای جلوگیری از باز شدن detail هنگام کلیک روی dropdown.
+5. **Pagination**: PER_PAGE=15، نمایش "X از Y مورد" در سمت راست، دو Button outline: قبلی (ChevronRight در RTL) و بعدی (ChevronLeft در RTL)، disabled وقتی page<=1 یا page>=lastPage.
+6. **Loading Skeleton**: ۸ ردیف با h-8 rounded-md bg-muted/40 animate-pulse هنگام loading. Empty state: پیام «هیچ اعلانی یافت نشد» در ۶ ستون.
+7. **Queue Monitor** (right column، col-span-1): Card با Tabs (grid-cols-2):
+   • Tab «آماده ارسال» (Clock icon): Button «پردازش دستی (۲۰ آیتم)» (Zap با Loader2 هنگام processing) که notificationQueueApi.process({ batchSize: 20 }, crypto.randomUUID()) صدا می‌زند و toast با processed count نشان می‌دهد. ScrollArea h-[400px] با list of QueueItemCard (variant="ready"). هر آیتم: templateCode (font-mono dir=ltr)، channel icon+label، recipientAddress (truncate)، تلاش X/Y، اولویت یا قفل، nextRetryAt.
+   • Tab «صف مرده» (AlertOctagon icon): Button «تلاش مجدد همه (N)» (RotateCw با Loader2 هنگام processing) که برای هر DLQ item به‌صورت parallel notificationsApi.retry(item.notificationId, crypto.randomUUID()) صدا می‌زند و toast با «موفق: X • ناموفق: Y» نشان می‌دهد. ScrollArea h-[400px] با list of QueueItemCard (variant="dlq"). هر آیتم: templateCode، channel، recipientAddress، تلاش X/Y، DLQ badge، deadLetterReason (truncate با title attribute).
+8. **Detail Dialog** (max-w-3xl max-h-90vh overflow-hidden flex flex-col):
+   • Header: Title «جزئیات اعلان» + StatusBadge + ChannelBadge. Description: notification id (font-mono truncate 40 dir=ltr).
+   • Body: ScrollArea flex-1 با space-y-4:
+     - Info grid (grid-cols-2 gap-3): الگو (templateCode + version badge + language badge)، گیرنده (name + address)، Idempotency Key (mono truncate)، Message ID، Created/Queued/Sent/Failed timestamps (هرکدام در InfoBlock با label uppercase text-[10px])
+     - Separator
+     - Rendered Subject در box bg-muted/30 (اگر null نباشد)
+     - Rendered Body در pre با dir=auto، font-mono، whitespace-pre-wrap، max-h-60 overflow-auto
+     - Payload در <details> با collapsible summary، JSON.stringify pretty در pre dir=ltr
+     - Error info box (اگر failed): border-red-200 bg-red-50 با AlertTriangle، errorCode و errorMessage
+     - Cancel info box (اگر cancelled): border-amber-200 bg-amber-50 با Ban، cancelledBy + cancelReason + cancelledAt
+     - Separator
+     - **Deliveries Timeline**: vertical timeline با border-r-2 border-muted pr-4، هر delivery به‌صورت relative با dot آیکن (DeliveryStatusIcon: CheckCircle emerald / XCircle red / Loader2 blue animate-spin). هر entry: تلاش #، provider badge، createdAt + durationMs، errorMessage اگر failed.
+     - Separator
+     - **Queue Items**: list of NotificationQueueItem با اولویت، تلاش/maxAttempts، nextRetryAt، inDeadLetter badge (اگر true با border-red)، deadLetterReason، lockedBy (اگر locked با font-mono dir=ltr)
+   • Action buttons (flex justify-end gap-2): Retry (اگر failed/retrying با RotateCw)، Cancel (اگر cancelable با variant="destructive" با Ban)، Close (variant="outline")
+9. **Send Dialog** (sub-component SendDialog، max-w-2xl):
+   • Props: open، onOpenChange، templates، templatesLoading، onSubmit
+   • Parent با key={sendDialogKey} رندر می‌شود. هر بار باز کردن dialog: setSendDialogKey(k => k+1) → SendDialog با useState اولیه fresh mount می‌شود (بدون نیاز به useEffect برای reset state — رعایت rule react-hooks/set-state-in-effect).
+   • Form: Select template (با نمایش code + channel + version + language)، Recipient Name (optional)، Recipient Address (required، dir=ltr)، Variables JSON Textarea (8 rows، font-mono، dir=ltr، default با ۷ کلید: customer/invoice/company/currentDate/trackingCode/warranty/service)، Priority (number، default 100)، Triggered By Event (default "manual").
+   • Submit: validation (templateCode required، recipientAddress required، JSON.parse variables با try/catch → toast.error اگر نامعتبر). سپس notificationsApi.send با crypto.randomUUID() به‌عنوان Idempotency-Key. اگر res.data.created=true → toast.success (وضعیت). اگر created=false → toast.message (Idempotent hit با res.data.message). سپس close + reload list + reload queue.
+10. **Cancel Dialog** (inline، max-w-md): Dialog کنترل‌شده با cancelTarget (Notification | null). Form: reason (Textarea، required) و cancelledBy (Input، default "admin"). Submit: validation (reason required) → notificationsApi.cancel(id, { reason, cancelledBy }, crypto.randomUUID()) → toast.success + close + refresh detail (اگر باز است) + reload list + reload queue.
+11. **State management**: useState برای notifications/total/page/lastPage/statusFilter/channelFilter/loading، detail dialog (detailOpen/selectedNotification/detailLoading/retryingId)، send dialog (sendOpen/sendDialogKey/templates/templatesLoading)، cancel dialog (cancelTarget/cancelReason/cancelledBy/cancellingId)، queue monitor (queueReady/queueDlq/queueLoading/processingQueue/retryingDlq). useCallback برای loadNotifications/loadQueue/loadTemplates/openDetail/refreshDetail/handleRetry/handleCancel/handleSend/handleProcessQueue/handleRetryAllDlq. useEffect برای loadNotifications و loadQueue روی dependency change. resetPageAnd helper برای batch page reset + filter change.
+12. **Helper maps**: CHANNEL_LABELS (ایمیل/پیامک/واتساپ/پوش/درون‌برنامه‌ای)، CHANNEL_ICONS (Mail/MessageSquare/Phone/Smartphone/Bell)، STATUS_LABELS (در انتظار/در صف/در حال ارسال/ارسال شد/خطا/تلاش مجدد/لغو شد)، STATUS_VARIANTS (default/secondary/destructive/outline)، STATUS_COLORS (amber/amber/blue/emerald/red/orange/muted-foreground)، TERMINAL_STATUSES، CANCELABLE_STATUSES، RETRYABLE_STATUSES.
+13. **Helper functions**: timeAgo (Persian relative time با toLocaleString('fa-IR'))، formatDateTime (Persian short date/time)، isApiError (type guard)، extractError (extract detail یا message یا fallback)، truncate (با ellipsis)، toPersianNumber (toLocaleString('fa-IR')).
+14. **Sub-components**: ChannelBadge (icon + optional label)، StatusBadge (Badge با variant)، DeliveryStatusIcon (CheckCircle/XCircle/Loader2 بر اساس status)، InfoBlock (labeled cell با uppercase tracking-wide label)، QueueItemCard (variant ready/dlq با styling متفاوت)، DeliveryTimeline (vertical timeline با border-r-2 و dot absolute)، QueueItemsList (list با grid 2-col info)، SendDialog (form با key-based remount).
+15. **Idempotency**: تمام mutation operations از crypto.randomUUID() به‌عنوان Idempotency-Key استفاده می‌کنند (send، retry، cancel، process queue، retry-all-dlq با Promise.all هرکدام UUID جداگانه).
+16. **Color convention رعایت شد**: emerald (sent/success)، red (failed/destructive/errors)، amber (pending/queued/cancelled box)، orange (retrying)، blue (sending icon فقط)، muted-foreground (cancelled). هیچ background indigo/blue استفاده نشد. border-red-200/amber-200 برای error/cancel boxes.
+17. **Law Info Card** پایین (bg-emerald-50 border-emerald-200) با توضیح LAW-55 (template-based versioned multilingual)، LAW-56 (channel-agnostic)، LAW-57 (idempotent operations).
+
+Files Created:
+1. /home/z/my-project/src/components/views/notifications-view.tsx (1409 lines)
+
+Stage Summary:
+- ✅ فایل notifications-view.tsx ایجاد شد با تمام بخش‌های موردنظر spec: Header با ۲ action، Two-column layout (lg:grid-cols-3) با لیست + فیلتر + pagination در چپ و Queue + DLQ monitor با Tabs در راست، Detail Dialog با info grid + subject/body/payload + error/cancel info + Deliveries Timeline + Queue Items + action buttons، Send Dialog با template select + form کامل + JSON validation، Cancel Dialog با reason + cancelledBy
+- ✅ bun run lint: EXIT_CODE=0 (project-wide clean) — رفع ۱ خطای react-hooks/set-state-in-effect با key-based remount pattern برای SendDialog
+- ✅ npx tsc --noEmit: صفر خطای TS در فایل جدید (grep خروجی خالی)
+- ✅ RTL Persian UI با تمام labels فارسی و اعداد فارسی (toLocaleString('fa-IR'))
+- ✅ Color convention رعایت شد: emerald/red/amber/orange/blue(muted)/muted-foreground — هیچ background indigo/blue استفاده نشد
+- ✅ shadcn/ui components استفاده شد: Card، CardContent، CardHeader، CardTitle، CardDescription، Badge، Button، Input، Label، Textarea، Select، Dialog، DropdownMenu، Table، Tabs، ScrollArea، Separator
+- ✅ Idempotency در send/retry/cancel/process/retry-all-dlq (همگی با crypto.randomUUID() به‌عنوان Idempotency-Key header)
+- ✅ Helper maps پیاده‌سازی شد: CHANNEL_LABELS، CHANNEL_ICONS، STATUS_LABELS، STATUS_VARIANTS، STATUS_COLORS، TERMINAL_STATUSES، CANCELABLE_STATUSES، RETRYABLE_STATUSES
+- ✅ Helper functions: timeAgo، formatDateTime، isApiError، extractError، truncate، toPersianNumber
+- ✅ Queue Monitor با دو Tab (Ready/Pending + DLQ)، Manual Process button، Retry All DLQ button با Promise.all
+- ✅ Deliveries Timeline vertical timeline با status icons (CheckCircle/XCircle/Loader2) و attempts sorted ASC
+- ✅ Detail Dialog با ScrollArea flex-1 برای scroll، action buttons شرطی بر اساس status (Retry only if failed/retrying، Cancel only if cancelable)
+- ✅ Error handling یکنواخت با toast.error و extractError helper
+- ✅ Loading skeletons: ۸ ردیف animate-pulse برای table، Loader2 spinner برای detail loading، Loader2 در queue items loading
+- ✅ LAW-55/56/57 مستند در Law Info card پایین
+- آماده برای task‌های بعدی Sprint 7.3: wiring این view به navigation/menu (با notification-dashboard-view و notification-templates-view)، preferences view (per-user channel opt-in/opt-out)، یا integration با dashboard view موجود
+
+---
+
+Task ID: 7-d
+Agent: Subagent — Notification Preferences View
+Task: Sprint 7.3 (Notification Center) — Build Notification Preferences view (per-user channel opt-in/opt-out, language, quiet hours) — LAW-56
+
+Work Log:
+- مطالعه worklog.md (تاریخچه Tasks 1-7c) برای درک context و conventions تثبیت‌شده در پروژه BISMARK ERP
+- مطالعه integration-view.tsx برای استخراج conventions: 'use client'، RTL Persian، Card/Button/Badge از shadcn/ui، Loader2 spinner، toast از 'sonner'، NO indigo/blue backgrounds، Law Info card پایین با bg-emerald-50 dark:bg-emerald-950/20، رنگ‌های emerald برای success state
+- مطالعه notification-templates-view.tsx برای pattern‌های دقیق‌تر: Table shadcn، Pagination RTL با ChevronRight برای قبلی و ChevronLeft برای بعدی، Select شامل Trigger/Content/Item، Badge variant="secondary" برای tags، CardDescription برای subtitle، Icon در CardTitle
+- مطالعه api-client.ts lines 852-1110 برای امضای دقیق Notification Preference APIs:
+  • notificationPreferencesApi.list(page=1, perPage=20) → PaginatedResponse<NotificationPreference>
+  • notificationPreferencesApi.get(userId) → { data: NotificationPreference } (get-or-create)
+  • notificationPreferencesApi.update(userId, data, idempotencyKey?) → { data: NotificationPreference } با PUT و Idempotency-Key header
+  • NotificationPreference: { id, userId, emailEnabled, smsEnabled, pushEnabled, whatsappEnabled, inappEnabled, language, quietHoursStart (string|null), quietHoursEnd (string|null), createdAt, updatedAt }
+  • PaginatedResponse<T> = { data: T[], meta: { page, per_page, total, last_page } }
+  • ApiError = { type, title, status, detail, code, correlation_id, timestamp, errors? }
+- مطالعه eslint.config.mjs: تمام rule‌های سختگیرانه OFF هستند (no-unused-vars، exhaustive-deps، react-compiler، purity) — اجازه آزاد به useEffect با setState در async callback
+- ایجاد فایل `/home/z/my-project/src/components/views/notification-preferences-view.tsx` (۶۰۸ خط)
+- اجرای `bun run lint`: EXIT_CODE=0 (project-wide clean) — صفر خطا در فایل جدید
+- اجرای `npx tsc --noEmit | grep notification-preferences-view`: خروجی خالی → صفر خطای TS در فایل جدید
+
+Design Decisions:
+1. **Layout**: single-column با `max-w-4xl mx-auto space-y-6` مطابق spec — Header + Section 1 (My Preferences) + Section 2 (All Preferences) + Section 3 (LAW-56 info card)
+2. **Header**: عنوان «ترجیحات اعلان» + subtitle «Sprint 7.3 — LAW-56: انتخاب کانال، زبان و ساعات سکوت توسط کاربر» + Button outline با RefreshCw (Loader2 animate-spin هنگام loading) به نام «بارگذاری مجدد» که هم list و هم self preference (اگر userId وارد شده) را refresh می‌کند
+3. **Section 1 — My Preferences (Card)**:
+   • CardHeader با CardTitle «ترجیحات من» (User icon) و CardDescription «یک کاربر را برای مشاهده یا ویرایش ترجیحات اعلان انتخاب کنید.»
+   • Lookup row: Label + Input با value="admin" (default)، dir="ltr" و font-mono برای userId، با Enter key handler (onKeyDown: Enter → loadSelf) + Button «بارگذاری» (Search icon، Loader2 هنگام loading) که notificationPreferencesApi.get(trimmed) را صدا می‌زند
+   • Empty state: اگر preference null و not loading → پیام «یک شناسه کاربر وارد کرده و 'بارگذاری' را بزنید.» با User icon (opacity-50)
+   • Loading state: اگر loading و preference null → Loader2 spinner centered
+   • Form (وقتی preference loaded):
+     - **Dirty indicator** (اگر form با saved preference تفاوت دارد): box با border-amber-200 bg-amber-50 (dark:amber-950/20) و AlertCircle icon و پیام «تغییرات ذخیره نشده — برای اعمال، روی 'ذخیره' بزنید.»
+     - Separator
+     - **Enabled Channels**: grid-cols-1 sm:grid-cols-2 با ۵ کارت. هر کارت: icon در box bg-muted (h-9 w-9) + Label + Switch + description. CHANNELS constant با ۵ مورد: emailEnabled→Mail (ایمیل / دریافت از طریق ایمیل)، smsEnabled→MessageSquare (پیامک / دریافت از طریق پیامک)، pushEnabled→Bell (پوش / دریافت از طریق پوش)، whatsappEnabled→Phone (واتساپ / دریافت از طریق واتساپ)، inappEnabled→Smartphone (درون‌برنامه‌ای / دریافت درون‌برنامه‌ای)
+     - Separator
+     - **Language**: Globe icon + Label «زبان اعلان» + Select با ۴ گزینه (fa→فارسی، en→English، ar→العربية، ku→Kurdî). SelectTrigger w-full sm:w-72
+     - Separator
+     - **Quiet Hours**: header با VolumeX icon + «ساعات سکوت» + Button ghost «پاک کردن» (disabled وقتی هر دو null). Helper text «در این بازه زمانی، اعلان‌ها به تعویق می‌افتند (به جز اعلان‌های اضطراری).». Grid ۲ ستونه با Input type="time" dir="ltr" برای شروع (quietHoursStart) و پایان (quietHoursEnd). onChange: empty string → null
+     - Separator
+     - **Save row**: footer با Clock icon + «آخرین به‌روزرسانی: {formatDateTime(updatedAt)}» در سمت چپ + Button «ذخیره» (Save icon، Loader2 هنگام saving، disabled وقتی saving یا !dirty) در سمت راست. Save: notificationPreferencesApi.update(trimmed, payload, crypto.randomUUID()) با payload شامل تمام ۵ enabled booleans + language + quietHoursStart/End (trim و null-coerce). پس از success: setPreference + setForm با snapshot جدید + toast.success + loadList(page) برای refresh table
+4. **Section 2 — All Preferences (Card)**:
+   • CardHeader با CardTitle «همه ترجیحات» (CheckCircle icon) و CardDescription «{total} مورد • صفحه {page} از {lastPage}» با اعداد فارسی
+   • Loading state: ۶ ردیف h-10 bg-muted/40 animate-pulse
+   • Table shadcn با ۵ ستون: شناسه کاربر (font-mono text-xs dir=ltr)، کانال‌های فعال (آیکن‌های enabled channels با w-3.5 h-3.5 text-muted-foreground، یا «—» اگر هیچ کانال فعال نباشد)، زبان (Badge secondary با LANGUAGE_LABELS[p.language] fallback p.language)، ساعات سکوت (dir=ltr font-mono «start — end» یا «—» اگر هر دو null)، به‌روزرسانی (timeAgo updatedAt با اعداد فارسی)
+   • Empty state: TableRow با colSpan=5 و پیام «هیچ ترجیحی یافت نشد.»
+   • Pagination: PER_PAGE=20، نمایش «from–to از total» در سمت چپ (با fallback &nbsp; هنگام loading)، دو Button outline size="sm" در سمت راست: «قبلی» با ChevronRight (RTL: قبلی در سمت راست) و «بندی» با ChevronLeft (RTL: بعدی در سمت چپ). disabled وقتی page<=1 یا page>=lastPage یا listLoading
+5. **Section 3 — LAW-56 Info Card**: subtle card با bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900، Volume2 icon با تیتر «LAW-56 — ارسال کانال‌اگنوستیک» (text-emerald-800 dark:text-emerald-300) و توضیح کامل LAW-56 از spec: «هیچ Contextی مستقیماً ایمیل یا SMS ارسال نمی‌کند. تمام Contextها فقط Event منتشر می‌کنند و Notification Context بر اساس ترجیحات کاربر تصمیم می‌گیرد از چه کانالی استفاده کند.»
+6. **State management**: useState برای userIdInput (default 'admin')، preference (NotificationPreference|null)، form (Partial<NotificationPreference>)، loadingSelf، saving، list (NotificationPreference[])، listLoading، page (default 1)، total، lastPage. useCallback برای loadList/loadSelf/handleReloadAll/handleSave/handleClearQuietHours/handleEnterKey. useEffect برای loadList(page) روی [page, loadList] dependency
+7. **Dirty detection**: تابع isDirty(saved, form) که ۸ فیلد editable (۵ enabled booleans + language + quietHoursStart + quietHoursEnd) را مقایسه می‌کند. quietHoursStart/End با null-coalescing برای تطبیق null و undefined
+8. **Snapshot helper**: تابع snapshot(pref) که form اولیه را از یک preference تازه-load/ذخیره شده می‌سازد — هر بار پس از loadSelf و handleSave فراخوانی می‌شود تا dirty reset شود
+9. **Helper functions**: timeAgo (Persian relative time با toLocaleString('fa-IR') و fallback برای NaN)، formatDateTime (Persian full date/time با toLocaleString('fa-IR'))، isApiError (type guard با 'detail' in e && 'status' in e)، extractError (extract detail یا message یا fallback)، isDirty، snapshot
+10. **Helper constants**: LANGUAGE_LABELS (fa/en/ar/ku)، CHANNELS (array of 5 ChannelConfig با key/label/description/icon)، PER_PAGE=20
+11. **Idempotency**: handleSave از crypto.randomUUID() به‌عنوان Idempotency-Key برای notificationPreferencesApi.update استفاده می‌کند — مطابق LAW-56 و الگوی ثابت‌شده در پروژه
+12. **Color convention رعایت شد**: emerald (LAW-56 info + success)، amber (dirty indicator)، muted-foreground (channel icons در table، updatedAt، helper text)، secondary (language badge). هیچ background indigo/blue استفاده نشد
+13. **Error handling**: تمام API calls با try/catch و toast.error همراه با extractError در description. در loadSelf پس از error: setPreference(null) و setForm({}) برای reset
+14. **RTL Persian UI**: تمام labels فارسی، اعداد فارسی (toLocaleString('fa-IR'))، dir="ltr" برای userId input و time inputs و cells جدول که محتوای فنی دارند، pagination با ChevronRight برای قبلی و ChevronLeft برای بعدی (مطابق direction خواندن RTL)
+15. **shadcn/ui components استفاده شد**: Card، CardContent، CardHeader، CardTitle، CardDescription، Badge، Button، Input، Label، Switch، Select (Trigger/Content/Item/Value)، Table (Header/Body/Head/Row/Cell)، Separator
+16. **Lucide icons**: Mail، MessageSquare، Phone، Bell، Smartphone (channels)، RefreshCw، Save، Loader2، CheckCircle، Clock، Volume2، VolumeX، Globe، AlertCircle، ChevronLeft، ChevronRight، User، Search — همگی در spec لیست شده بودند و همگی استفاده شدند
+
+Files Created:
+1. /home/z/my-project/src/components/views/notification-preferences-view.tsx (608 lines)
+
+Stage Summary:
+- ✅ فایل notification-preferences-view.tsx ایجاد شد با تمام ۳ بخش موردنظر spec: Header با Reload، Section 1 (My Preferences با userId lookup + 5 channel switches + language select + quiet hours + save + dirty indicator)، Section 2 (All Preferences با table + pagination)، Section 3 (LAW-56 info card)
+- ✅ bun run lint: EXIT_CODE=0 (project-wide clean) — صفر خطا در فایل جدید
+- ✅ npx tsc --noEmit: صفر خطای TS در فایل جدید (grep خروجی خالی)
+- ✅ RTL Persian UI با تمام labels فارسی و اعداد فارسی (toLocaleString('fa-IR'))
+- ✅ Color convention رعایت شد: emerald/amber/muted-foreground/secondary — هیچ background indigo/blue استفاده نشد
+- ✅ shadcn/ui components استفاده شد: Card، CardContent، CardHeader، CardTitle، CardDescription، Badge، Button، Input، Label، Switch، Select، Table، Separator
+- ✅ Idempotency در update (crypto.randomUUID() به‌عنوان Idempotency-Key header)
+- ✅ Helper functions: timeAgo، formatDateTime، isApiError، extractError، isDirty، snapshot
+- ✅ Helper constants: LANGUAGE_LABELS، CHANNELS، PER_PAGE
+- ✅ Dirty state detection با comparison ۸ فیلد editable + amber indicator box
+- ✅ Pagination RTL با ChevronRight برای قبلی و ChevronLeft برای بعدی (مطابق direction خواندن RTL)
+- ✅ Error handling یکنواخت با toast.error و extractError helper
+- ✅ Loading states: spinner برای self load، ۶ ردیف animate-pulse برای table
+- ✅ Empty states: User icon + پیام برای self، TableRow با colSpan=5 برای table
+- ✅ LAW-56 (channel-agnostic delivery) مستند در Law Info card پایین
+- آماده برای task‌های بعدی Sprint 7.3: wiring این view به navigation/menu (در کنار notification-dashboard-view، notification-templates-view، notifications-view)، یا integration با User Profile view
+
+---
+
+Task ID: 8b-fix
+Agent: Subagent — IdempotencyHelper Fix
+Task: رفع باگ `TypeError: unusable` در Notification Center routes — تطبیق الگوی fix با send/route.ts در ۸ route دیگر
+
+Work Log:
+- مطالعه worklog.md (تاریخچه Tasks 1-7d) برای درک context و conventions تثبیت‌شده در پروژه BISMARK ERP
+- مطالعه reference fix در `/home/z/my-project/src/app/api/v1/notifications/send/route.ts` برای استخراج الگوی درست:
+  • `const rawBody = await request.text()` به‌جای `await request.json()`
+  • `const body = JSON.parse(rawBody)` (یا با try/catch fallback به `{}`)
+  • `const responseBody = JSON.stringify({ data: ... })` به‌جای `jsonResponse(...)`
+  • `await IdempotencyHelper.store(request, responseBody, status, rawBody)` — پاس دادن `rawBody` به‌عنوان آرگومان ۴ام
+  • `return new Response(responseBody, { status, headers: { 'Content-Type': 'application/json' } })` به‌جای `return response`
+- مطالعه `/home/z/my-project/src/lib/shared/infra/idempotency-helper.ts` برای تأیید signature جدید `IdempotencyHelper.store(request, responseBody, responseStatus, requestBody?)` — پارامتر `requestBody` اختیاری است و اگر داده شود، به‌جای `request.clone().text()` استفاده می‌شود (رفع `TypeError: unusable`)
+- مطالعه `/home/z/my-project/src/lib/api-helpers.ts` برای تأیید اینکه `jsonResponse(data, status)` دقیقاً معادل `new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })` است — بنابراین جایگزینی معادل‌سازی عینی است
+- مطالعه همه ۸ route متأثر و اعمال fix:
+
+1. `/home/z/my-project/src/app/api/v1/notification/templates/route.ts` (POST create template):
+   - `const body = await request.json()` → `const rawBody = await request.text(); const body = JSON.parse(rawBody)`
+   - `const response = jsonResponse({ data: toDTO(template), warnings: validationIssues }, 201)` + `IdempotencyHelper.store(request, await response.clone().text(), 201)` + `return response` → `const responseBody = JSON.stringify({...})` + `IdempotencyHelper.store(request, responseBody, 201, rawBody)` + `return new Response(responseBody, { status: 201, headers: { 'Content-Type': 'application/json' } })`
+   - import `jsonResponse` نگه داشته شد چون GET handler در همان فایل از آن استفاده می‌کند
+
+2. `/home/z/my-project/src/app/api/v1/notification/templates/[id]/preview/route.ts` (POST preview):
+   - `const body = await request.json().catch(() => ({}))` → `const rawBody = await request.text(); let body: any = {}; try { body = rawBody ? JSON.parse(rawBody) : {} } catch { /* keep {} */ }` — حفظ fallback behavior
+   - response refactoring مطابق الگو
+   - `jsonResponse` از imports حذف شد (فقط POST handler داشت)
+
+3. `/home/z/my-project/src/app/api/v1/notification/templates/[id]/publish/route.ts` (POST publish):
+   - body استفاده نمی‌شود (فقط `[id]` param) — اضافه شد `const rawBody = await request.text().catch(() => '')` فقط برای idempotency hashing
+   - response refactoring مطابق الگو
+   - `jsonResponse` از imports حذف شد
+
+4. `/home/z/my-project/src/app/api/v1/notification/templates/seed-defaults/route.ts` (POST seed):
+   - body استفاده نمی‌شود — اضافه شد `const rawBody = await request.text().catch(() => '')`
+   - response refactoring مطابق الگو
+   - `jsonResponse` از imports حذف شد
+
+5. `/home/z/my-project/src/app/api/v1/notification-preferences/[userId]/route.ts` (PUT update preference):
+   - `const body = await request.json().catch(() => ({}))` → `const rawBody = await request.text(); let body: any = {}; try { body = rawBody ? JSON.parse(rawBody) : {} } catch { /* keep {} */ }`
+   - response refactoring مطابق الگو
+   - import `jsonResponse` نگه داشته شد چون GET handler در همان فایل از آن استفاده می‌کند
+
+6. `/home/z/my-project/src/app/api/v1/notification-queue/process/route.ts` (POST process):
+   - `const body = await request.json().catch(() => ({}))` → `const rawBody = await request.text(); let body: any = {}; try { body = rawBody ? JSON.parse(rawBody) : {} } catch { /* keep {} */ }`
+   - response refactoring مطابق الگو
+   - `jsonResponse` از imports حذف شد
+
+7. `/home/z/my-project/src/app/api/v1/notifications/[id]/retry/route.ts` (POST retry):
+   - body استفاده نمی‌شود (فقط `[id]` param) — اضافه شد `const rawBody = await request.text().catch(() => '')`
+   - response refactoring مطابق الگو
+   - `jsonResponse` از imports حذف شد
+
+8. `/home/z/my-project/src/app/api/v1/notifications/[id]/cancel/route.ts` (POST cancel):
+   - `const body = await request.json().catch(() => ({}))` → `const rawBody = await request.text(); let body: any = {}; try { body = rawBody ? JSON.parse(rawBody) : {} } catch { /* keep {} */ }`
+   - response refactoring مطابق الگو
+   - `jsonResponse` از imports حذف شد
+
+- اجرای `bun run lint`: EXIT_CODE=0 — صفر خطای lint در کل پروژه
+- اجرای `npx tsc --noEmit | grep <modified paths>`: خروجی خالی → صفر خطای TS در فایل‌های تغییر یافته
+
+Design Decisions:
+1. **Pattern دو-حالته برای body parsing**:
+   - Routes با body required (templates create) → `const rawBody = await request.text(); const body = JSON.parse(rawBody)` بدون try/catch (parse error در catch اصلی route گردآوری می‌شود و 500 برمی‌گرداند — مطابق رفتار قبلی `request.json()`)
+   - Routes با body optional یا fallback (preview، preferences PUT، queue process، cancel) → `let body: any = {}; try { body = rawBody ? JSON.parse(rawBody) : {} } catch { /* keep {} */ }` برای حفظ دقیق fallback `.catch(() => ({}))`
+   - Routes بدون body (publish، seed-defaults، retry) → فقط `const rawBody = await request.text().catch(() => '')` برای hashing (پارامتر ۴ام IdempotencyHelper.store)
+2. **Imports cleanup**: در فایل‌هایی که POST handler تنها consumer `jsonResponse` بود (preview، publish، seed-defaults، queue/process، retry، cancel)، import `jsonResponse` از `'@/lib/api-helpers'` حذف شد تا unused import باقی نماند. در فایل‌های templates/route.ts و notification-preferences/[userId]/route.ts که GET handler هم در همان فایل وجود دارد و از `jsonResponse` استفاده می‌کند، import دست‌نخورده باقی ماند
+3. **معادل‌سازی عینی response**: مطابق تأیید `jsonResponse(data, status) === new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })` — هیچ تغییر رفتار در payload یا status code رخ نداده است
+4. **Error handling دست‌نخورده**: catch block اصلی (DomainException → errorResponse، else → 500) بدون تغییر باقی ماند
+5. **Business logic دست‌نخورده**: validation rules، service calls، DB operations، outbox events — هیچ تغییری نکردند
+6. **Comment inline**: در هر فایل یک comment کوتاه با ارجاع به `send/route.ts` اضافه شد تا rationale روشن باشد (همان الگوی comment که در send/route.ts خود وجود دارد)
+
+Files Modified (8 files):
+1. /home/z/my-project/src/app/api/v1/notification/templates/route.ts
+2. /home/z/my-project/src/app/api/v1/notification/templates/[id]/preview/route.ts
+3. /home/z/my-project/src/app/api/v1/notification/templates/[id]/publish/route.ts
+4. /home/z/my-project/src/app/api/v1/notification/templates/seed-defaults/route.ts
+5. /home/z/my-project/src/app/api/v1/notification-preferences/[userId]/route.ts
+6. /home/z/my-project/src/app/api/v1/notification-queue/process/route.ts
+7. /home/z/my-project/src/app/api/v1/notifications/[id]/retry/route.ts
+8. /home/z/my-project/src/app/api/v1/notifications/[id]/cancel/route.ts
+
+Stage Summary:
+- ✅ همه ۸ route متأثر با الگوی fix هم‌سان با `send/route.ts` اصلاح شدند
+- ✅ `IdempotencyHelper.store(request, responseBody, status, rawBody)` با `rawBody` به‌عنوان آرگومان ۴ام در همه ۸ فایل فراخوانی می‌شود — `request.clone().text()` دیگر هرگز بعد از `request.json()` در هیچ route از Notification Center فراخوانی نمی‌شود
+- ✅ bun run lint: EXIT_CODE=0 (project-wide clean)
+- ✅ npx tsc --noEmit: صفر خطای TS در فایل‌های تغییر یافته
+- ✅ معادل‌سازی عینی response (JSON.stringify + new Response) با همان status code و Content-Type header
+- ✅ Error handling و business logic بدون تغییر باقی ماندند
+- ✅ Imports cleanup در ۶ فایل (preview، publish، seed-defaults، queue/process، retry، cancel) — `jsonResponse` از imports حذف شد چون دیگر استفاده نمی‌شد
+- ✅ Comment inline در هر فایل با ارجاع به send/route.ts برای rationale
+- باگ `TypeError: unusable` در همه ۹ route از Notification Center (send + ۸ مورد دیگر) برطرف شد — اکنون هر route با Idempotency-Key header به‌صورت امن قابل فراخوانی است
+
+---
+Task ID: 9
+Agent: Main (Software Company / Architect)
+Task: Sprint 7.3 — Notification Center (Final Verification & Sign-off)
+
+Work Log:
+- Built 3 architecture laws (LAW-55 template-based, LAW-56 channel-agnostic, LAW-57 retryable+idempotent)
+- Added 5 Prisma models (NotificationTemplate, Notification, NotificationDelivery, NotificationPreference, NotificationQueue) — pushed to SQLite sandbox
+- Built deterministic Template Engine (variables, {{#if}}/{{else}}, {{#each}} with @index/@first/@last, validation)
+- Built Notification Service with dispatch (idempotency pre-check + race-condition P2002 catch + UnitOfWork + Outbox), processQueueItem (lock → provider.send → NotificationDelivery audit → backoff retry), cancel, retry, list, getById, getStats
+- Built 5 Channel Providers (email: smtp/ses/sendgrid; sms: kavenegar/melipayamak/twilio; whatsapp: evolution/meta_cloud; push: firebase; inapp: inapp_db) — deterministic 10% failure for retry testing
+- Built Preference Service (getOrCreate + update with outbox event)
+- Built 16 API routes:
+  • GET/POST /notification/templates
+  • GET /notification/templates/[id], /versions
+  • POST /notification/templates/[id]/publish, /preview
+  • POST /notification/templates/seed-defaults (seeds 5 default templates)
+  • GET /notifications, /notifications/[id], /notifications/stats
+  • POST /notifications/send, /notifications/[id]/retry, /notifications/[id]/cancel
+  • GET/PUT /notification-preferences/[userId]
+  • GET /notification-queue, POST /notification-queue/process
+- Added 7 new domain events to catalog: notification.created, queued, sent, failed, retrying, cancelled, preference.updated
+- Extended api-client.ts with NotificationTemplate, Notification, NotificationDelivery, NotificationPreference, NotificationQueueList types + 4 API singletons (templates, notifications, preferences, queue)
+- Built 4 UI views:
+  • NotificationDashboardView (6 stat cards, success rate, channel distribution, quick actions, recent notifications, send-test dialog with auto-seed on mount)
+  • NotificationTemplatesView (filter bar, table, editor dialog, preview dialog, versions dialog, publish confirm)
+  • NotificationsView (two-column: list+detail with deliveries timeline + queue monitor with DLQ tab + retry-all)
+  • NotificationPreferencesView (self preference editor with 5 channel switches, language, quiet hours + all preferences list)
+- Wired 4 new views into main page.tsx navigation (new "اعلان‌ها" group with 4 buttons)
+- Footer updated: "Sprint 7.3 (Notification Center)" + "57 Laws"
+- Fixed IdempotencyHelper.store signature to accept optional requestBody param (avoids "TypeError: unusable" when request body was already consumed by request.json())
+- Fixed all 9 notification API routes to use raw body text + manual JSON.parse + JSON.stringify + new Response() pattern (avoids response.clone().text() issues in Turbopack dev mode)
+- Seeded 5 default templates: invoice.issued (email/fa), payment.received (sms/fa), shipment.delivered (whatsapp/fa), service_order.ready (push/fa), warranty.claim.approved (email/fa)
+
+Browser Verification (Agent Browser):
+- Login successful → navigation shows new "اعلان‌ها" group with 4 buttons
+- Notification Dashboard renders: 6 stat cards (۰/۰/۴/۰/۰/۰), 100% success rate, 43.5ms avg delivery, channel distribution (email=4), recent notifications table with 4 rows
+- Notification Templates renders: all 5 seeded templates visible with status "منتشر شده", version v1, language فارسی, notification counts (invoice.issued=4)
+- Notifications view renders: 4 sent notifications in table + Queue Monitor with "آماده ارسال" and "صف مرده" tabs
+- Preferences view renders: load "admin" → form with 5 channel switches, language select (فارسی), quiet hours inputs
+- Send Test flow verified end-to-end:
+  • Submit dialog with template + recipient + variables → 201 Created
+  • Process Queue → "sent" status, NotificationDelivery audit row created
+  • Dashboard stats updated: 4 sent today, 100% success rate, 43.5ms avg
+- Footer verified sticky to bottom (top=515, bottom=556, viewport=577)
+- All Persian RTL text rendered correctly
+- Lint: 0 errors
+
+Stage Summary:
+- Sprint 7.3: ✅ Complete (Notification Center)
+- Total Architecture Laws: ۵۷ (LAW-55/56/57 added)
+- Total Prisma Models: 72+ (5 new)
+- Total API Routes: 120+ (16 new)
+- Total UI Views: 17 (4 new)
+- Total Domain Events: 61+ (7 new)
+- LAW-55: ✅ All notifications rendered from versioned, language-aware templates
+- LAW-56: ✅ Channel-agnostic — contexts only publish events; Notification Context decides channel
+- LAW-57: ✅ Idempotent (unique [tenantId, idempotencyKey]) + retryable (5 attempts, backoff 1m/5m/30m/2h) + DLQ
+- Definition of Done: ✅ all 8 criteria met
+- آماده Sprint 7.4 (Automation & Scheduler)

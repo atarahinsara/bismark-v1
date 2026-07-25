@@ -46,8 +46,12 @@ import { IntegrationView } from '@/components/views/integration-view'
 import { WarrantyView } from '@/components/views/warranty-view'
 import { ServiceView } from '@/components/views/service-view'
 import { FinancialView } from '@/components/views/financial-view'
+import { NotificationDashboardView } from '@/components/views/notification-dashboard-view'
+import { NotificationTemplatesView } from '@/components/views/notification-templates-view'
+import { NotificationsView } from '@/components/views/notifications-view'
+import { NotificationPreferencesView } from '@/components/views/notification-preferences-view'
 
-type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'warranty' | 'service' | 'financial' | 'integration' | 'branches' | 'audit' | 'settings'
+type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'warranty' | 'service' | 'financial' | 'integration' | 'branches' | 'audit' | 'settings' | 'notification-dashboard' | 'notification-templates' | 'notifications' | 'notification-preferences'
 
 const userTypeLabels: Record<UserType, string> = {
   customer: 'مشتری',
@@ -235,6 +239,15 @@ const navGroups = [
       { view: 'transfers' as View, label: 'انتقالات', icon: ArrowRightLeft },
       { view: 'cycle-counts' as View, label: 'شمارش موجودی', icon: ClipboardCheck },
       { view: 'branches' as View, label: 'شعب', icon: Building2 },
+    ],
+  },
+  {
+    title: 'اعلان‌ها',
+    items: [
+      { view: 'notification-dashboard' as View, label: 'داشبورد اعلان‌ها', icon: Bell },
+      { view: 'notifications' as View, label: 'مرکز اعلان‌ها', icon: Bell },
+      { view: 'notification-templates' as View, label: 'الگوهای اعلان', icon: FileText },
+      { view: 'notification-preferences' as View, label: 'ترجیحات اعلان', icon: Settings },
     ],
   },
   {
@@ -1388,6 +1401,10 @@ export default function Page() {
     branches: 'شعب',
     audit: 'لاگ ممیزی',
     settings: 'تنظیمات',
+    'notification-dashboard': 'داشبورد اعلان‌ها',
+    'notification-templates': 'الگوهای اعلان',
+    notifications: 'مرکز اعلان‌ها',
+    'notification-preferences': 'ترجیحات اعلان',
   }
 
   return (
@@ -1423,16 +1440,22 @@ export default function Page() {
           {view === 'branches' && <BranchesView />}
           {view === 'audit' && <AuditView />}
           {view === 'settings' && <SettingsView />}
+          {view === 'notification-dashboard' && <NotificationDashboardView />}
+          {view === 'notification-templates' && <NotificationTemplatesView />}
+          {view === 'notifications' && <NotificationsView />}
+          {view === 'notification-preferences' && <NotificationPreferencesView />}
         </main>
 
         <footer className="border-t border-border bg-background px-6 py-3 text-xs text-muted-foreground flex items-center justify-between shrink-0">
-          <div>BISMARK ERP v1.0.0 — Sprint 1</div>
+          <div>BISMARK ERP v1.0.0 — Sprint 7.3 (Notification Center)</div>
           <div className="flex items-center gap-4">
             <span>Backend: Laravel 12</span>
             <span>•</span>
             <span>Frontend: Next.js 16</span>
             <span>•</span>
             <span>DB: PostgreSQL</span>
+            <span>•</span>
+            <span>57 Laws</span>
           </div>
         </footer>
       </div>

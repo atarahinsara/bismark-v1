@@ -77,17 +77,23 @@ export class IdempotencyHelper {
 
   /**
    * Store the response for future idempotent requests.
+   *
+   * If `requestBody` is provided, it is used directly as the body for hashing
+   * (avoids re-cloning the request stream which throws "TypeError: unusable"
+   * after `request.json()` has consumed the body in some runtimes).
+   * Otherwise, falls back to `request.clone().text()`.
    */
   static async store(
     request: Request,
     responseBody: string,
     responseStatus: number,
+    requestBody?: string,
   ): Promise<void> {
     const idempotencyKey = request.headers.get('Idempotency-Key')
     if (!idempotencyKey) return
 
     const tenantId = await getTenantId()
-    const body = await request.clone().text()
+    const body = requestBody ?? (await request.clone().text())
     const requestHash = crypto.createHash('sha256').update(body).digest('hex')
     const endpoint = `${request.method} ${new URL(request.url).pathname}`
 

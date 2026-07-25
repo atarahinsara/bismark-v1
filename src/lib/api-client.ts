@@ -848,3 +848,263 @@ export const refundsApi = {
   approve: (id: string, data: { approvedBy?: string }, idempotencyKey?: string) =>
     request<{ data: { id: string; refundNumber: string; status: string; message: string } }>(`/refunds/${id}/approve`, { method: 'POST', body: JSON.stringify(data), headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
 }
+
+// ============================================================
+// Notification Center (Sprint 7.3 — LAW-55/56/57)
+// ============================================================
+
+export type NotificationChannel = 'email' | 'sms' | 'whatsapp' | 'push' | 'inapp'
+export type NotificationStatus =
+  | 'pending' | 'queued' | 'sending' | 'sent' | 'failed' | 'retrying' | 'cancelled'
+
+export interface NotificationTemplate {
+  id: string
+  code: string
+  name: string
+  version: number
+  language: string
+  channel: NotificationChannel
+  subjectTemplate: string | null
+  bodyTemplate: string
+  variablesSchema: any
+  status: 'draft' | 'published' | 'disabled'
+  effectiveFrom: string
+  effectiveTo: string | null
+  publishedAt: string | null
+  description: string | null
+  notificationCount?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Notification {
+  id: string
+  templateCode: string
+  templateVersion: number
+  language: string
+  recipientId: string | null
+  recipientName: string | null
+  recipientAddress: string
+  channel: NotificationChannel
+  status: NotificationStatus
+  payload: any
+  renderedSubject: string | null
+  renderedBody: string
+  messageId: string | null
+  idempotencyKey: string
+  errorCode: string | null
+  errorMessage: string | null
+  createdAt: string
+  queuedAt: string | null
+  sentAt: string | null
+  failedAt: string | null
+  cancelledAt: string | null
+  cancelledBy: string | null
+  cancelReason: string | null
+  deliveryCount?: number
+  deliveries?: NotificationDelivery[]
+  queueItems?: NotificationQueueItem[]
+  template?: Pick<NotificationTemplate, 'id' | 'code' | 'version' | 'name' | 'language' | 'channel'>
+}
+
+export interface NotificationDelivery {
+  id: string
+  provider: string
+  attempt: number
+  status: 'sending' | 'sent' | 'failed'
+  response: any
+  durationMs: number
+  errorMessage: string | null
+  createdAt: string
+}
+
+export interface NotificationQueueItem {
+  id: string
+  priority: number
+  attempt: number
+  maxAttempts: number
+  nextRetryAt: string
+  inDeadLetter: boolean
+  deadLetterAt: string | null
+  deadLetterReason: string | null
+  lockedBy: string | null
+  lockedAt: string | null
+  createdAt: string
+}
+
+export interface NotificationPreference {
+  id: string
+  userId: string
+  emailEnabled: boolean
+  smsEnabled: boolean
+  pushEnabled: boolean
+  whatsappEnabled: boolean
+  inappEnabled: boolean
+  language: string
+  quietHoursStart: string | null
+  quietHoursEnd: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NotificationStats {
+  queued: number
+  sending: number
+  sentToday: number
+  failed: number
+  retrying: number
+  dlq: number
+  byChannel: Record<NotificationChannel, number>
+  successRate: number
+  avgDeliveryMs: number | null
+}
+
+export const notificationTemplatesApi = {
+  list: (params: { page?: number; perPage?: number; status?: string; channel?: string; language?: string; code?: string } = {}) => {
+    const sp = new URLSearchParams()
+    sp.set('page', String(params.page ?? 1))
+    sp.set('per_page', String(params.perPage ?? 20))
+    if (params.status) sp.set('status', params.status)
+    if (params.channel) sp.set('channel', params.channel)
+    if (params.language) sp.set('language', params.language)
+    if (params.code) sp.set('code', params.code)
+    return request<PaginatedResponse<NotificationTemplate>>(`/notification/templates?${sp}`)
+  },
+  get: (id: string) =>
+    request<{ data: NotificationTemplate }>(`/notification/templates/${id}`),
+  versions: (id: string) =>
+    request<{ data: NotificationTemplate[] }>(`/notification/templates/${id}/versions`),
+  create: (data: {
+    code: string
+    name: string
+    language: string
+    channel: NotificationChannel
+    subjectTemplate?: string
+    bodyTemplate: string
+    variablesSchema?: any
+    description?: string
+  }, idempotencyKey?: string) =>
+    request<{ data: NotificationTemplate; warnings?: string[] }>(`/notification/templates`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  publish: (id: string, idempotencyKey?: string) =>
+    request<{ data: NotificationTemplate }>(`/notification/templates/${id}/publish`, {
+      method: 'POST', body: '{}',
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  preview: (id: string, variables: Record<string, any>, idempotencyKey?: string) =>
+    request<{ data: { subject: string | null; body: string; warnings: string[]; issues: string[] } }>(
+      `/notification/templates/${id}/preview`, {
+        method: 'POST', body: JSON.stringify({ variables }),
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+      }),
+  seedDefaults: (idempotencyKey?: string) =>
+    request<{ data: { seeded: NotificationTemplate[]; alreadySeeded: boolean; message?: string } }>(
+      `/notification/templates/seed-defaults`, {
+        method: 'POST', body: '{}',
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+      }),
+}
+
+export const notificationsApi = {
+  list: (params: { page?: number; perPage?: number; status?: string; channel?: string; recipientId?: string } = {}) => {
+    const sp = new URLSearchParams()
+    sp.set('page', String(params.page ?? 1))
+    sp.set('per_page', String(params.perPage ?? 20))
+    if (params.status) sp.set('status', params.status)
+    if (params.channel) sp.set('channel', params.channel)
+    if (params.recipientId) sp.set('recipientId', params.recipientId)
+    return request<PaginatedResponse<Notification>>(`/notifications?${sp}`)
+  },
+  get: (id: string) =>
+    request<{ data: Notification }>(`/notifications/${id}`),
+  send: (data: {
+    templateCode: string
+    channel?: NotificationChannel
+    language?: string
+    recipientId?: string
+    recipientName?: string
+    recipientAddress: string
+    variables: Record<string, any>
+    priority?: number
+    triggeredByEvent?: string
+    idempotencyKey?: string
+  }, idempotencyKey?: string) =>
+    request<{ data: { notificationId: string; status: string; created: boolean; message?: string } }>(
+      `/notifications/send`, {
+        method: 'POST', body: JSON.stringify(data),
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+      }),
+  retry: (id: string, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string; message: string } }>(`/notifications/${id}/retry`, {
+      method: 'POST', body: '{}',
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  cancel: (id: string, data: { reason: string; cancelledBy: string }, idempotencyKey?: string) =>
+    request<{ data: { id: string; status: string } }>(`/notifications/${id}/cancel`, {
+      method: 'POST', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+  stats: () =>
+    request<{ data: NotificationStats }>(`/notifications/stats`),
+}
+
+export const notificationPreferencesApi = {
+  list: (page = 1, perPage = 20) =>
+    request<PaginatedResponse<NotificationPreference>>(`/notification-preferences?page=${page}&per_page=${perPage}`),
+  get: (userId: string) =>
+    request<{ data: NotificationPreference }>(`/notification-preferences/${userId}`),
+  update: (userId: string, data: Partial<{
+    emailEnabled: boolean
+    smsEnabled: boolean
+    pushEnabled: boolean
+    whatsappEnabled: boolean
+    inappEnabled: boolean
+    language: string
+    quietHoursStart: string | null
+    quietHoursEnd: string | null
+  }>, idempotencyKey?: string) =>
+    request<{ data: NotificationPreference }>(`/notification-preferences/${userId}`, {
+      method: 'PUT', body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+    }),
+}
+
+export interface NotificationQueueList {
+  id: string
+  priority: number
+  attempt: number
+  maxAttempts: number
+  nextRetryAt: string
+  inDeadLetter: boolean
+  deadLetterAt: string | null
+  deadLetterReason: string | null
+  lockedBy: string | null
+  lockedAt: string | null
+  notificationId: string
+  notification: {
+    id: string
+    status: NotificationStatus
+    channel: NotificationChannel
+    recipientAddress: string
+    templateCode: string
+  }
+  createdAt: string
+}
+
+export const notificationQueueApi = {
+  list: (params: { page?: number; perPage?: number; status?: 'dlq' | 'ready' | 'locked' | 'pending' } = {}) => {
+    const sp = new URLSearchParams()
+    sp.set('page', String(params.page ?? 1))
+    sp.set('per_page', String(params.perPage ?? 20))
+    if (params.status) sp.set('status', params.status)
+    return request<PaginatedResponse<NotificationQueueList>>(`/notification-queue?${sp}`)
+  },
+  process: (data: { batchSize?: number; workerId?: string } = {}, idempotencyKey?: string) =>
+    request<{ data: { processed: number; results: Array<{ queueItemId: string; notificationId: string; status: string }> } }>(
+      `/notification-queue/process`, {
+        method: 'POST', body: JSON.stringify(data),
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+      }),
+}

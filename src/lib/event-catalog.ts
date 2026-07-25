@@ -257,6 +257,50 @@ export const EVENT_CATALOG: EventDefinition[] = [
     payloadFields: ['orderNumber'],
     retryPolicy: 'exponential', idempotencyKey: 'orderId',
   },
+
+  // ===== NOTIFICATION CONTEXT (Sprint 7.3 — LAW-55/56/57) =====
+  {
+    eventType: 'notification.created', version: '1.0',
+    publisher: 'Notification', consumers: ['Audit'],
+    payloadFields: ['notificationId', 'templateCode', 'templateVersion', 'recipientId', 'channel'],
+    retryPolicy: 'exponential', idempotencyKey: 'notificationId',
+  },
+  {
+    eventType: 'notification.queued', version: '1.0',
+    publisher: 'Notification', consumers: ['Audit'],
+    payloadFields: ['notificationId', 'queueItemId', 'priority', 'nextRetryAt'],
+    retryPolicy: 'exponential', idempotencyKey: 'notificationId',
+  },
+  {
+    eventType: 'notification.sent', version: '1.0',
+    publisher: 'Notification', consumers: ['Audit'],
+    payloadFields: ['notificationId', 'messageId', 'provider', 'attempt', 'durationMs'],
+    retryPolicy: 'none', idempotencyKey: 'notificationId',
+  },
+  {
+    eventType: 'notification.failed', version: '1.0',
+    publisher: 'Notification', consumers: ['Audit'],
+    payloadFields: ['notificationId', 'attempt', 'errorCode', 'errorMessage', 'movedToDLQ'],
+    retryPolicy: 'exponential', idempotencyKey: 'notificationId',
+  },
+  {
+    eventType: 'notification.retrying', version: '1.0',
+    publisher: 'Notification', consumers: ['Audit'],
+    payloadFields: ['notificationId', 'attempt', 'nextRetryAt', 'backoffSeconds'],
+    retryPolicy: 'exponential', idempotencyKey: 'notificationId',
+  },
+  {
+    eventType: 'notification.cancelled', version: '1.0',
+    publisher: 'Notification', consumers: ['Audit'],
+    payloadFields: ['notificationId', 'reason', 'cancelledBy'],
+    retryPolicy: 'none', idempotencyKey: 'notificationId',
+  },
+  {
+    eventType: 'notification.preference.updated', version: '1.0',
+    publisher: 'Notification', consumers: ['Audit'],
+    payloadFields: ['userId', 'channelsEnabled', 'language', 'quietHours'],
+    retryPolicy: 'exponential', idempotencyKey: 'userId',
+  },
 ]
 
 /**
