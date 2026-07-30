@@ -117,25 +117,30 @@ model Tenant {
 // ============================================================
 
 model User {
-  id          String    @id @default(cuid())
-  tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
-  username    String
-  displayName String
-  email       String?
-  phone       String?
-  userType    String    @default("staff") // customer|representative|technician|service_center|staff
-  status      String    @default("active") // active|suspended|locked|deleted
-  locale      String    @default("fa-IR")
-  isActive    Boolean   @default(true)
+  id           String      @id @default(cuid())
+  tenantId     String
+  tenant       Tenant      @relation(fields: [tenantId], references: [id])
+  username     String
+  displayName  String
+  email        String?
+  phone        String?
+  passwordHash String?
+  userType     String      @default("staff") // customer|representative|technician|service_center|staff
+  status       String      @default("active") // active|suspended|locked|deleted
+  locale       String      @default("fa-IR")
+  isActive     Boolean     @default(true)
   lockedUntil DateTime?
-  lastLoginAt DateTime?
-  metadata    Json
-  createdBy   String?
-  updatedBy   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  failedLoginAttempts Int  @default(0)
+  lastLoginAt  DateTime?
+  metadata     Json
+  createdBy    String?
+  updatedBy    String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  userRoles    UserRole[]
+  sessions     Session[]
 
   @@unique([tenantId, username])
   @@index([tenantId, status])
@@ -143,37 +148,77 @@ model User {
 }
 
 model Role {
-  id          String    @id @default(cuid())
-  tenantId    String
-  key         String
-  name        String
-  description String?
-  isSystem    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id              String            @id @default(cuid())
+  tenantId        String
+  key             String
+  name            String
+  description     String?
+  isSystem        Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
 
   @@unique([tenantId, key])
   @@map("roles")
 }
 
 model Permission {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  module      String
-  action      String
-  description String?
-  isSystem    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id              String          @id @default(cuid())
+  key             String          @unique
+  module          String
+  action          String
+  description     String?
+  isSystem        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+
+  rolePermissions RolePermission[]
 
   @@map("permissions")
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
+  assignedBy String?
+  assignedAt DateTime @default(now())
+
+  @@unique([tenantId, userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  tenantId     String
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  grantedBy    String?
+  grantedAt    DateTime   @default(now())
+
+  @@unique([tenantId, roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 model Session {
   id                String    @id @default(cuid())
   userId            String
+  user              User      @relation(fields: [userId], references: [id])
   tenantId          String
   status            String    @default("active") // active|expired|revoked
+  tokenHash         String
+  refreshTokenHash  String?
   ipAddress         String
   userAgent         String?
   deviceFingerprint String?
@@ -185,7 +230,9 @@ model Session {
   revokedReason     String?
   metadata          Json
 
+  @@unique([tokenHash])
   @@index([userId, status])
+  @@index([refreshTokenHash])
   @@map("sessions")
 }
 

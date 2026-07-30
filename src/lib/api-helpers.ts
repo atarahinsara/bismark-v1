@@ -1,16 +1,33 @@
 import { db } from '@/lib/db'
 import { getTenantContext } from '@/lib/shared'
+import { headers } from 'next/headers'
 
 /**
- * Get or create the default tenant (sandbox: single-tenant).
- * In production, this is extracted from JWT claims by middleware.
+ * Get the current tenant ID.
+ *
+ * Priority:
+ *   1. x-auth-tenant-id header (set by middleware from verified JWT)
+ *   2. In-memory context (set by previous call in same request)
+ *   3. Default tenant fallback (for public endpoints like health check)
  */
 export async function getTenantId(): Promise<string> {
-  // Try context first (set by auth middleware)
+  // 1. Try auth header (set by middleware from verified JWT)
+  try {
+    const headersList = await headers()
+    const authTenantId = headersList.get('x-auth-tenant-id')
+    if (authTenantId) {
+      getTenantContext().setTenant(authTenantId, 'bismark')
+      return authTenantId
+    }
+  } catch {
+    // headers() not available in this context (e.g., outside request)
+  }
+
+  // 2. Try in-memory context (set by previous call)
   const ctx = getTenantContext().getTenantId()
   if (ctx) return ctx
 
-  // Sandbox fallback: use default tenant
+  // 3. Sandbox fallback: use default tenant
   const tenant = await db.tenant.findFirst({
     where: { slug: 'bismark' },
   })
@@ -21,6 +38,32 @@ export async function getTenantId(): Promise<string> {
 
   getTenantContext().setTenant(tenant.id, tenant.slug)
   return tenant.id
+}
+
+/**
+ * Get the authenticated user ID from request headers.
+ * Returns null if not authenticated (public route).
+ */
+export async function getAuthenticatedUserId(): Promise<string | null> {
+  try {
+    const headersList = await headers()
+    return headersList.get('x-auth-user-id')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Get the authenticated user's roles from request headers.
+ */
+export async function getAuthenticatedRoles(): Promise<string[]> {
+  try {
+    const headersList = await headers()
+    const rolesHeader = headersList.get('x-auth-roles')
+    return rolesHeader ? rolesHeader.split(',').filter(Boolean) : []
+  } catch {
+    return []
+  }
 }
 
 /**

@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   LayoutDashboard, Users, UserCog, Building2, Shield, FileText,
   LogOut, Search, Bell, Settings, Menu, X, Sun, Moon, Globe,
   Plus, Edit2, Trash2, Lock, Unlock, Ban, CheckCircle, AlertCircle,
   ChevronLeft, MoreVertical, Mail, Phone, Calendar, User as UserIcon,
   Server, Database, GitBranch, Zap, Check, Filter, Download, Package,
-  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck, Receipt, Undo2, Activity, ShieldCheck, Wrench, Calculator,
+  Warehouse as WarehouseIcon, BookOpen, ArrowRightLeft, ClipboardCheck, ShoppingCart, Truck, Receipt, Undo2, Activity, ShieldCheck, Wrench, Calculator, Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +32,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTheme } from 'next-themes'
 import { mockUsers, mockRoles, mockParties, mockBranches, dashboardStats } from '@/lib/mock-data'
+import { authApi, isAuthenticated, clearAuthTokens, type ApiError } from '@/lib/api-client'
 import type { User, Role, Party, UserType, UserStatus, PartyType, PartyStatus } from '@/lib/types'
 import { ProductsView } from '@/components/views/products-view'
 import { InventoryView } from '@/components/views/inventory-view'
@@ -110,14 +111,21 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('demo1234')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
+    setError(null)
+    try {
+      await authApi.login(username, password)
       onLogin()
-    }, 800)
+    } catch (err: any) {
+      const apiErr = err as ApiError
+      setError(apiErr?.detail || apiErr?.message || 'ورود ناموفق بود')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -129,7 +137,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           </div>
           <h1 className="text-3xl font-bold tracking-tight">BISMARK ERP</h1>
           <p className="text-muted-foreground mt-2">سامانه برنامه‌ریزی منابع سازمانی</p>
-          <p className="text-xs text-muted-foreground mt-1">Sprint 1 — Identity & Master Data</p>
+          <p className="text-xs text-muted-foreground mt-1">Sprint 11 — Authentication & Security</p>
         </div>
 
         <Card className="shadow-xl border-border/50">
@@ -171,8 +179,13 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                   رمز عبور را فراموش کرده‌اید؟
                 </Button>
               </div>
+              {error && (
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
               <Button type="submit" className="w-full h-11 text-base" disabled={loading}>
-                {loading ? 'در حال ورود...' : 'ورود'}
+                {loading ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> در حال ورود...</> : 'ورود'}
               </Button>
             </form>
 
@@ -1372,7 +1385,17 @@ function SettingsView() {
 // MAIN APP
 // ============================================================
 export default function Page() {
-  const [authenticated, setAuthenticated] = useState(false)
+  const [authenticated, setAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return isAuthenticated()
+    }
+    return false
+  })
+
+  const handleLogout = async () => {
+    await authApi.logout()
+    setAuthenticated(false)
+  }
   const [view, setView] = useState<View>('dashboard')
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 

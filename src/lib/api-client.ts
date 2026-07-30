@@ -3,9 +3,14 @@
  *
  * Real HTTP API client. No mock data.
  * All pages MUST use this client (Sprint 2 rule).
+ *
+ * Sprint 11 (Auth): Automatically attaches Bearer token to all requests.
+ * Token is stored in localStorage after login.
  */
 
 const API_BASE = '/api/v1'
+const TOKEN_KEY = 'bismark_access_token'
+const REFRESH_TOKEN_KEY = 'bismark_refresh_token'
 
 export interface PaginatedResponse<T> {
   data: T[]
@@ -23,17 +28,138 @@ export interface ApiError {
   errors?: Array<{ field: string; message: string; code: string }>
 }
 
+// ============================================================
+// Auth Token Management
+// ============================================================
+
+export function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
+export function setAuthTokens(accessToken: string, refreshToken: string): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(TOKEN_KEY, accessToken)
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+}
+
+export function clearAuthTokens(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+export function isAuthenticated(): boolean {
+  return !!getAccessToken()
+}
+
+// ============================================================
+// Auth API
+// ============================================================
+
+export const authApi = {
+  login: async (username: string, password: string) => {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw error
+    }
+    const json = await response.json()
+    setAuthTokens(json.data.accessToken, json.data.refreshToken)
+    return json.data
+  },
+
+  logout: async () => {
+    const token = getAccessToken()
+    if (token) {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: '{}',
+      }).catch(() => {})
+    }
+    clearAuthTokens()
+  },
+
+  me: async () => {
+    return request<{ data: { user: any; roles: string[]; permissions: string[] } }>('/auth/me')
+  },
+
+  refresh: async () => {
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) throw new Error('No refresh token')
+    const response = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+    if (!response.ok) {
+      clearAuthTokens()
+      throw new Error('Refresh failed')
+    }
+    const json = await response.json()
+    setAuthTokens(json.data.accessToken, json.data.refreshToken)
+    return json.data
+  },
+}
+
+// ============================================================
+// HTTP Request Helper (auto-attaches auth token)
+// ============================================================
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  }
+
+  // Auto-attach Bearer token
+  const token = getAccessToken()
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   })
+
+  // Handle 401 — try refresh, then retry
+  if (response.status === 401 && token) {
+    try {
+      await authApi.refresh()
+      // Retry with new token
+      const newToken = getAccessToken()
+      if (newToken) {
+        headers['Authorization'] = `Bearer ${newToken}`
+        const retryResponse = await fetch(`${API_BASE}${path}`, { ...options, headers })
+        if (retryResponse.ok) {
+          if (retryResponse.status === 204) return null as T
+          return retryResponse.json()
+        }
+      }
+    } catch {
+      clearAuthTokens()
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
+    }
+  }
 
   if (!response.ok) {
     let error: ApiError
