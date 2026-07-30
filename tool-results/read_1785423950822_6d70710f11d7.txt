@@ -1,0 +1,702 @@
+  1100→  allocations PaymentAllocation[]
+  1101→
+  1102→  @@unique([tenantId, paymentNumber])
+  1103→  @@index([tenantId, customerPartyId, paymentDate])
+  1104→  @@index([tenantId, status])
+  1105→  @@map("payments")
+  1106→}
+  1107→
+  1108→model PaymentAllocation {
+  1109→  id              String   @id @default(cuid())
+  1110→  tenantId        String
+  1111→  paymentId       String
+  1112→  payment         Payment  @relation(fields: [paymentId], references: [id])
+  1113→  invoiceId       String
+  1114→  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+  1115→  allocatedAmount Float
+  1116→  allocatedAt     DateTime @default(now())
+  1117→  allocatedBy     String?
+  1118→  notes           String?
+  1119→  createdAt       DateTime @default(now())
+  1120→
+  1121→  @@unique([paymentId, invoiceId])
+  1122→  @@index([invoiceId])
+  1123→  @@map("payment_allocations")
+  1124→}
+  1125→
+  1126→model CreditNote {
+  1127→  id               String    @id @default(cuid())
+  1128→  tenantId         String
+  1129→  creditNoteNumber String // business code: CN-1403-00001
+  1130→  invoiceId        String // the invoice being credited
+  1131→  customerPartyId  String
+  1132→  creditNoteDate   DateTime  @default(now())
+  1133→  status           String    @default("draft") // draft|issued|applied|cancelled
+  1134→  subtotal         Float     @default(0)
+  1135→  taxAmount        Float     @default(0)
+  1136→  totalAmount      Float     @default(0)
+  1137→  currencyCode     String    @default("IRR")
+  1138→  reason           String?
+  1139→  notes            String?
+  1140→  metadata         Json?
+  1141→  version          Int       @default(1) // LAW-07
+  1142→  issuedAt         DateTime?
+  1143→  appliedAt        DateTime?
+  1144→  createdAt        DateTime  @default(now())
+  1145→  updatedAt        DateTime  @updatedAt
+  1146→  deletedAt        DateTime?
+  1147→
+  1148→  lines CreditNoteLine[]
+  1149→
+  1150→  @@unique([tenantId, creditNoteNumber])
+  1151→  @@index([invoiceId])
+  1152→  @@map("credit_notes")
+  1153→}
+  1154→
+  1155→model CreditNoteLine {
+  1156→  id            String     @id @default(cuid())
+  1157→  tenantId      String
+  1158→  creditNoteId  String
+  1159→  creditNote    CreditNote @relation(fields: [creditNoteId], references: [id])
+  1160→  invoiceLineId String?
+  1161→  lineNumber    Int
+  1162→  productId     String?
+  1163→  description   String
+  1164→  quantity      Float      @default(1)
+  1165→  unitPrice     Float      @default(0)
+  1166→  taxAmount     Float      @default(0)
+  1167→  lineTotal     Float
+  1168→  notes         String?
+  1169→  createdAt     DateTime   @default(now())
+  1170→
+  1171→  @@unique([creditNoteId, lineNumber])
+  1172→  @@map("credit_note_lines")
+  1173→}
+  1174→
+  1175→// ============================================================
+  1176→// SPRINT 3.4 — RETURNS & REFUNDS
+  1177→// ============================================================
+  1178→// LAW-22: No Return Receipt Without Physical Inspection
+  1179→// LAW-23: Refund Requires Approved Return
+  1180→// LAW-24: Replacement Is Return + New Fulfillment
+  1181→// ============================================================
+  1182→
+  1183→model ReturnOrder {
+  1184→  id                      String    @id @default(cuid())
+  1185→  tenantId                String
+  1186→  returnNumber            String // business code: RET-1403-00001
+  1187→  salesOrderId            String? // original sales order
+  1188→  invoiceId               String? // original invoice
+  1189→  customerPartyId         String
+  1190→  returnType              String    @default("refund") // refund|replacement|return_only
+  1191→  status                  String    @default("draft") // draft|submitted|approved|received|closed|cancelled
+  1192→  returnDate              DateTime  @default(now())
+  1193→  approvedAt              DateTime?
+  1194→  approvedBy              String?
+  1195→  receivedAt              DateTime?
+  1196→  receivedBy              String?
+  1197→  closedAt                DateTime?
+  1198→  refundAmount            Float     @default(0)
+  1199→  currencyCode            String    @default("IRR")
+  1200→  reason                  String?
+  1201→  notes                   String?
+  1202→  metadata                Json?
+  1203→  version                 Int       @default(1) // LAW-07
+  1204→  // LAW-24: Replacement links
+  1205→  replacementSalesOrderId String?
+  1206→  createdAt               DateTime  @default(now())
+  1207→  updatedAt               DateTime  @updatedAt
+  1208→  deletedAt               DateTime?
+  1209→
+  1210→  lines   ReturnOrderLine[]
+  1211→  refunds Refund[]
+  1212→
+  1213→  @@unique([tenantId, returnNumber])
+  1214→  @@index([salesOrderId])
+  1215→  @@index([tenantId, customerPartyId])
+  1216→  @@index([tenantId, status])
+  1217→  @@map("return_orders")
+  1218→}
+  1219→
+  1220→model ReturnOrderLine {
+  1221→  id                 String      @id @default(cuid())
+  1222→  tenantId           String
+  1223→  returnOrderId      String
+  1224→  returnOrder        ReturnOrder @relation(fields: [returnOrderId], references: [id])
+  1225→  lineNumber         Int
+  1226→  productId          String
+  1227→  productInstanceId  String?
+  1228→  quantityReturned   Float
+  1229→  unitPrice          Float
+  1230→  lineTotal          Float
+  1231→  returnReason       String?
+  1232→  // LAW-22: Physical Inspection fields
+  1233→  inspectedCondition String? // new|used|damaged|defective
+  1234→  inspectionNotes    String?
+  1235→  inspectedBy        String?
+  1236→  inspectedAt        DateTime?
+  1237→  isInspected        Boolean     @default(false)
+  1238→  notes              String?
+  1239→  createdAt          DateTime    @default(now())
+  1240→  updatedAt          DateTime    @updatedAt
+  1241→
+  1242→  @@unique([returnOrderId, lineNumber])
+  1243→  @@map("return_order_lines")
+  1244→}
+  1245→
+  1246→model Refund {
+  1247→  id              String      @id @default(cuid())
+  1248→  tenantId        String
+  1249→  refundNumber    String // business code: RFD-1403-00001
+  1250→  returnOrderId   String // LAW-23: requires approved return
+  1251→  returnOrder     ReturnOrder @relation(fields: [returnOrderId], references: [id])
+  1252→  customerPartyId String
+  1253→  refundDate      DateTime    @default(now())
+  1254→  amount          Float
+  1255→  currencyCode    String      @default("IRR")
+  1256→  refundMethod    String // cash|bank_transfer|check|credit_card|pos|online|wallet
+  1257→  status          String      @default("pending") // pending|approved|completed|cancelled
+  1258→  referenceNumber String?
+  1259→  approvedAt      DateTime?
+  1260→  approvedBy      String?
+  1261→  completedAt     DateTime?
+  1262→  notes           String?
+  1263→  metadata        Json?
+  1264→  version         Int         @default(1) // LAW-07
+  1265→  createdAt       DateTime    @default(now())
+  1266→  updatedAt       DateTime    @updatedAt
+  1267→  deletedAt       DateTime?
+  1268→
+  1269→  @@unique([tenantId, refundNumber])
+  1270→  @@index([returnOrderId])
+  1271→  @@index([tenantId, customerPartyId])
+  1272→  @@map("refunds")
+  1273→}
+  1274→
+  1275→// ============================================================
+  1276→// SPRINT 3.5 — INTEGRATION (Saga, Inbox, Event Catalog)
+  1277→// ============================================================
+  1278→// LAW-25: No Cross-Context Synchronous Commands
+  1279→// LAW-26: Every Domain Event Must Be Processed Exactly Once
+  1280→// LAW-27: Every Long-Running Business Process Must Be a Saga
+  1281→// ============================================================
+  1282→
+  1283→model SagaDefinition {
+  1284→  id          String   @id @default(cuid())
+  1285→  tenantId    String
+  1286→  key         String // e.g., 'sales_order_fulfillment'
+  1287→  name        String
+  1288→  description String?
+  1289→  steps       Json // [{ step: 1, name: 'reserve_inventory', event: 'sales_order.approved', compensation: 'release_reservation' }]
+  1290→  isActive    Boolean  @default(true)
+  1291→  version     Int      @default(1)
+  1292→  createdAt   DateTime @default(now())
+  1293→  updatedAt   DateTime @updatedAt
+  1294→
+  1295→  @@unique([tenantId, key])
+  1296→  @@map("saga_definitions")
+  1297→}
+  1298→
+  1299→model SagaInstance {
+  1300→  id                String    @id @default(cuid())
+  1301→  tenantId          String
+  1302→  sagaDefinitionKey String
+  1303→  correlationId     String // links to the business entity (e.g., sales order ID)
+  1304→  status            String    @default("pending") // pending|running|completed|failed|compensating|compensated
+  1305→  currentStep       Int       @default(0)
+  1306→  totalSteps        Int       @default(0)
+  1307→  payload           Json // saga context data
+  1308→  errorMessage      String?
+  1309→  startedAt         DateTime?
+  1310→  completedAt       DateTime?
+  1311→  createdAt         DateTime  @default(now())
+  1312→  updatedAt         DateTime  @updatedAt
+  1313→
+  1314→  @@index([tenantId, status])
+  1315→  @@index([correlationId])
+  1316→  @@map("saga_instances")
+  1317→}
+  1318→
+  1319→// ============================================================
+  1320→// SPRINT 4 — WARRANTY CONTEXT
+  1321→// ============================================================
+  1322→// LAW-28: Warranty Activation Only From Shipment Delivered Event
+  1323→// LAW-29: Every Warranty Claim Must Pass Inspection Before Approval
+  1324→// LAW-30: Device Timeline Is Reconstructed From Immutable Domain Events
+  1325→// ============================================================
+  1326→
+  1327→model WarrantyPolicy {
+  1328→  id             String    @id @default(cuid())
+  1329→  tenantId       String
+  1330→  productModelId String? // FK to ProductModel (loose — LAW-04)
+  1331→  policyName     String
+  1332→  warrantyType   String    @default("standard") // standard|extended|commercial|lifetime
+  1333→  warrantyMonths Int       @default(12)
+  1334→  graceDays      Int       @default(0)
+  1335→  isRenewable    Boolean   @default(true)
+  1336→  coverageTerms  Json // {parts: [...], labor: bool, ...}
+  1337→  exclusions     Json      @default("[]")
+  1338→  validFrom      DateTime  @default(now())
+  1339→  validTo        DateTime?
+  1340→  isActive       Boolean   @default(true)
+  1341→  metadata       Json?
+  1342→  version        Int       @default(1) // LAW-07
+  1343→  createdAt      DateTime  @default(now())
+  1344→  updatedAt      DateTime  @updatedAt
+  1345→  deletedAt      DateTime?
+  1346→
+  1347→  cards WarrantyCard[]
+  1348→
+  1349→  @@unique([tenantId, productModelId, policyName])
+  1350→  @@map("warranty_policies")
+  1351→}
+  1352→
+  1353→model WarrantyCard {
+  1354→  id                String         @id @default(cuid())
+  1355→  tenantId          String
+  1356→  warrantyNumber    String // business code: WAR-1403-00001
+  1357→  productInstanceId String // FK to ProductInstance (loose — LAW-04)
+  1358→  customerPartyId   String // FK to Party (loose — LAW-04)
+  1359→  warrantyPolicyId  String
+  1360→  warrantyPolicy    WarrantyPolicy @relation(fields: [warrantyPolicyId], references: [id])
+  1361→  salesOrderId      String?
+  1362→  shipmentId        String?
+  1363→  activationDate    DateTime?
+  1364→  startDate         DateTime?
+  1365→  endDate           DateTime?
+  1366→  graceEndDate      DateTime?
+  1367→  status            String         @default("pending") // pending|active|expired|voided|transferred
+  1368→  extendedMonths    Int            @default(0)
+  1369→  notes             String?
+  1370→  metadata          Json?
+  1371→  version           Int            @default(1) // LAW-07
+  1372→  createdAt         DateTime       @default(now())
+  1373→  updatedAt         DateTime       @updatedAt
+  1374→  deletedAt         DateTime?
+  1375→
+  1376→  claims     WarrantyClaim[]
+  1377→  extensions WarrantyExtension[]
+  1378→  transfers  WarrantyTransfer[]
+  1379→
+  1380→  @@unique([tenantId, warrantyNumber])
+  1381→  @@unique([tenantId, productInstanceId])
+  1382→  @@index([tenantId, customerPartyId])
+  1383→  @@index([tenantId, status])
+  1384→  @@map("warranty_cards")
+  1385→}
+  1386→
+  1387→model WarrantyClaim {
+  1388→  id                String       @id @default(cuid())
+  1389→  tenantId          String
+  1390→  claimNumber       String // business code: WCL-1403-00001
+  1391→  warrantyCardId    String
+  1392→  warrantyCard      WarrantyCard @relation(fields: [warrantyCardId], references: [id])
+  1393→  productInstanceId String
+  1394→  customerPartyId   String
+  1395→  claimType         String       @default("defect") // defect|damage|malfunction|doa|other
+  1396→  claimDate         DateTime     @default(now())
+  1397→  description       String
+  1398→  defectDescription String?
+  1399→  status            String       @default("draft") // draft|submitted|inspection|approved|rejected|service_order|closed
+  1400→  // LAW-29: Inspection fields
+  1401→  defectType        String? // mechanical|electrical|cosmetic|software|other
+  1402→  defectSeverity    String? // minor|moderate|major|critical
+  1403→  isCovered         Boolean?
+  1404→  inspectionNotes   String?
+  1405→  inspectedBy       String?
+  1406→  inspectedAt       DateTime?
+  1407→  isInspected       Boolean      @default(false)
+  1408→  // Approval
+  1409→  approvedAt        DateTime?
+  1410→  approvedBy        String?
+  1411→  approvalNotes     String?
+  1412→  rejectedAt        DateTime?
+  1413→  rejectedBy        String?
+  1414→  rejectionReason   String?
+  1415→  // Service link
+  1416→  serviceOrderId    String?
+  1417→  // Resolution
+  1418→  resolvedAt        DateTime?
+  1419→  resolutionNotes   String?
+  1420→  estimatedCost     Float?
+  1421→  actualCost        Float?
+  1422→  currencyCode      String       @default("IRR")
+  1423→  metadata          Json?
+  1424→  version           Int          @default(1) // LAW-07
+  1425→  createdAt         DateTime     @default(now())
+  1426→  updatedAt         DateTime     @updatedAt
+  1427→  deletedAt         DateTime?
+  1428→
+  1429→  @@unique([tenantId, claimNumber])
+  1430→  @@index([warrantyCardId])
+  1431→  @@index([tenantId, customerPartyId, claimDate])
+  1432→  @@index([tenantId, status])
+  1433→  @@map("warranty_claims")
+  1434→}
+  1435→
+  1436→model WarrantyExtension {
+  1437→  id              String       @id @default(cuid())
+  1438→  tenantId        String
+  1439→  extensionNumber String // business code: WEX-1403-00001
+  1440→  warrantyCardId  String
+  1441→  warrantyCard    WarrantyCard @relation(fields: [warrantyCardId], references: [id])
+  1442→  extensionType   String // free|paid|promotional
+  1443→  extensionMonths Int
+  1444→  newEndDate      DateTime
+  1445→  amountPaid      Float        @default(0)
+  1446→  currencyCode    String       @default("IRR")
+  1447→  paymentId       String?
+  1448→  activationDate  DateTime     @default(now())
+  1449→  notes           String?
+  1450→  metadata        Json?
+  1451→  version         Int          @default(1) // LAW-07
+  1452→  createdAt       DateTime     @default(now())
+  1453→  updatedAt       DateTime     @updatedAt
+  1454→  deletedAt       DateTime?
+  1455→
+  1456→  @@unique([tenantId, extensionNumber])
+  1457→  @@index([warrantyCardId])
+  1458→  @@map("warranty_extensions")
+  1459→}
+  1460→
+  1461→model WarrantyTransfer {
+  1462→  id                String       @id @default(cuid())
+  1463→  tenantId          String
+  1464→  transferNumber    String // business code: WTR-1403-00001
+  1465→  warrantyCardId    String
+  1466→  warrantyCard      WarrantyCard @relation(fields: [warrantyCardId], references: [id])
+  1467→  productInstanceId String
+  1468→  fromPartyId       String
+  1469→  toPartyId         String
+  1470→  transferDate      DateTime     @default(now())
+  1471→  reason            String?
+  1472→  transferFee       Float        @default(0)
+  1473→  currencyCode      String       @default("IRR")
+  1474→  approvalStatus    String       @default("pending") // pending|approved|rejected
+  1475→  approvedBy        String?
+  1476→  approvedAt        DateTime?
+  1477→  notes             String?
+  1478→  metadata          Json?
+  1479→  version           Int          @default(1) // LAW-07
+  1480→  createdAt         DateTime     @default(now())
+  1481→  updatedAt         DateTime     @updatedAt
+  1482→
+  1483→  @@unique([tenantId, transferNumber])
+  1484→  @@index([warrantyCardId])
+  1485→  @@map("warranty_transfers")
+  1486→}
+  1487→
+  1488→// ============================================================
+  1489→// SPRINT 5 — SERVICE CONTEXT
+  1490→// ============================================================
+  1491→// LAW-31: No Part Consumption Without Inventory Ledger Event
+  1492→// LAW-32: Every Repair Must Pass Quality Control Before Delivery
+  1493→// LAW-33: Warranty Approval Creates Service Request Only Through Events
+  1494→// ============================================================
+  1495→
+  1496→model ServiceRequest {
+  1497→  id                  String    @id @default(cuid())
+  1498→  tenantId            String
+  1499→  requestNumber       String // business code: SR-1403-00001
+  1500→  customerPartyId     String // FK to Party (loose — LAW-04)
+  1501→  productInstanceId   String? // FK to ProductInstance (loose — LAW-04)
+  1502→  warrantyCardId      String?
+  1503→  warrantyClaimId     String? // LAW-33: linked from warranty claim event
+  1504→  serviceCenterId     String?
+  1505→  serviceKind         String    @default("warranty") // warranty|out_of_warranty|paid|recall
+  1506→  priority            String    @default("normal") // low|normal|high|urgent|critical
+  1507→  status              String    @default("draft") // draft|submitted|validated|service_order|cancelled
+  1508→  customerProblem     String
+  1509→  customerDescription String?
+  1510→  deviceInfo          Json? // {brand, model, serial, ...}
+  1511→  reportedDefect      String?
+  1512→  estimatedCompletion DateTime?
+  1513→  actualCompletion    DateTime?
+  1514→  customerConsent     Boolean   @default(false)
+  1515→  serviceOrderId      String? // link to ServiceOrder once created
+  1516→  notes               String?
+  1517→  metadata            Json?
+  1518→  version             Int       @default(1) // LAW-07
+  1519→  createdAt           DateTime  @default(now())
+  1520→  updatedAt           DateTime  @updatedAt
+  1521→  deletedAt           DateTime?
+  1522→
+  1523→  @@unique([tenantId, requestNumber])
+  1524→  @@index([tenantId, customerPartyId])
+  1525→  @@index([tenantId, status])
+  1526→  @@index([warrantyClaimId])
+  1527→  @@map("service_requests")
+  1528→}
+  1529→
+  1530→model ServiceOrder {
+  1531→  id                   String    @id @default(cuid())
+  1532→  tenantId             String
+  1533→  orderNumber          String // business code: RO-1403-00001
+  1534→  serviceRequestId     String?
+  1535→  customerPartyId      String
+  1536→  productInstanceId    String?
+  1537→  warrantyCardId       String?
+  1538→  warrantyClaimId      String?
+  1539→  serviceCenterId      String?
+  1540→  assignedTechnicianId String? // FK to Party (loose — technicians are parties)
+  1541→  serviceKind          String    @default("warranty")
+  1542→  status               String    @default("open") // open|diagnosis|waiting_parts|repair|qc|ready|delivered|closed|cancelled
+  1543→  createdDate          DateTime  @default(now())
+  1544→  diagnosisDate        DateTime?
+  1545→  repairStartDate      DateTime?
+  1546→  repairCompleteDate   DateTime?
+  1547→  qcDate               DateTime?
+  1548→  readyDate            DateTime?
+  1549→  deliveredDate        DateTime?
+  1550→  closedDate           DateTime?
+  1551→  laborCost            Float     @default(0)
+  1552→  partsCost            Float     @default(0)
+  1553→  otherCost            Float     @default(0)
+  1554→  discountAmount       Float     @default(0)
+  1555→  taxAmount            Float     @default(0)
+  1556→  totalCost            Float     @default(0)
+  1557→  paidAmount           Float     @default(0)
+  1558→  currencyCode         String    @default("IRR")
+  1559→  notes                String?
+  1560→  metadata             Json?
+  1561→  version              Int       @default(1) // LAW-07
+  1562→  createdAt            DateTime  @default(now())
+  1563→  updatedAt            DateTime  @updatedAt
+  1564→  deletedAt            DateTime?
+  1565→
+  1566→  lines        ServiceOrderLine[]
+  1567→  parts        ServiceOrderPart[]
+  1568→  laborRecords ServiceOrderLabor[]
+  1569→  diagnoses    ServiceDiagnosis[]
+  1570→  qcChecks     ServiceQualityCheck[]
+  1571→
+  1572→  @@unique([tenantId, orderNumber])
+  1573→  @@index([serviceRequestId])
+  1574→  @@index([tenantId, customerPartyId])
+  1575→  @@index([tenantId, status])
+  1576→  @@index([assignedTechnicianId])
+  1577→  @@map("service_orders")
+  1578→}
+  1579→
+  1580→model ServiceOrderLine {
+  1581→  id              String       @id @default(cuid())
+  1582→  tenantId        String
+  1583→  serviceOrderId  String
+  1584→  serviceOrder    ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  1585→  lineNumber      Int
+  1586→  taskDescription String
+  1587→  taskType        String? // diagnosis|repair|replacement|testing
+  1588→  estimatedHours  Float?
+  1589→  actualHours     Float?
+  1590→  completedAt     DateTime?
+  1591→  isCompleted     Boolean      @default(false)
+  1592→  notes           String?
+  1593→  createdAt       DateTime     @default(now())
+  1594→  updatedAt       DateTime     @updatedAt
+  1595→
+  1596→  @@unique([serviceOrderId, lineNumber])
+  1597→  @@map("service_order_lines")
+  1598→}
+  1599→
+  1600→model ServiceDiagnosis {
+  1601→  id                 String       @id @default(cuid())
+  1602→  tenantId           String
+  1603→  serviceOrderId     String
+  1604→  serviceOrder       ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  1605→  technicianPartyId  String
+  1606→  diagnosisDate      DateTime     @default(now())
+  1607→  symptom            String
+  1608→  rootCause          String?
+  1609→  recommendedAction  String?
+  1610→  estimatedHours     Float?
+  1611→  estimatedPartsCost Float?
+  1612→  confidenceLevel    String? // low|medium|high
+  1613→  notes              String?
+  1614→  createdAt          DateTime     @default(now())
+  1615→
+  1616→  @@index([serviceOrderId])
+  1617→  @@map("service_diagnoses")
+  1618→}
+  1619→
+  1620→model ServiceOrderPart {
+  1621→  id                    String       @id @default(cuid())
+  1622→  tenantId              String
+  1623→  serviceOrderId        String
+  1624→  serviceOrder          ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  1625→  productId             String // FK to Product (loose — LAW-04)
+  1626→  productInstanceId     String? // for serialized parts
+  1627→  fromWarehouseId       String?
+  1628→  fromLocationId        String?
+  1629→  quantityUsed          Float        @default(0)
+  1630→  unitCost              Float        @default(0)
+  1631→  totalCost             Float        @default(0)
+  1632→  isWarrantyCovered     Boolean      @default(false)
+  1633→  isReturnedPart        Boolean      @default(false)
+  1634→  returnedToWarehouseId String?
+  1635→  usedAt                DateTime     @default(now())
+  1636→  notes                 String?
+  1637→  createdAt             DateTime     @default(now())
+  1638→
+  1639→  @@index([serviceOrderId])
+  1640→  @@index([productId])
+  1641→  @@map("service_order_parts")
+  1642→}
+  1643→
+  1644→model ServiceOrderLabor {
+  1645→  id                String       @id @default(cuid())
+  1646→  tenantId          String
+  1647→  serviceOrderId    String
+  1648→  serviceOrder      ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  1649→  technicianPartyId String
+  1650→  laborType         String // diagnosis|repair|testing|other
+  1651→  hours             Float
+  1652→  hourlyRate        Float
+  1653→  totalCost         Float
+  1654→  isWarrantyCovered Boolean      @default(false)
+  1655→  startedAt         DateTime?
+  1656→  endedAt           DateTime?
+  1657→  notes             String?
+  1658→  createdAt         DateTime     @default(now())
+  1659→
+  1660→  @@index([serviceOrderId])
+  1661→  @@index([technicianPartyId])
+  1662→  @@map("service_order_labor")
+  1663→}
+  1664→
+  1665→model ServiceQualityCheck {
+  1666→  id               String       @id @default(cuid())
+  1667→  tenantId         String
+  1668→  qcNumber         String // business code: QC-1403-00001
+  1669→  serviceOrderId   String
+  1670→  serviceOrder     ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  1671→  inspectorPartyId String?
+  1672→  inspectionDate   DateTime     @default(now())
+  1673→  result           String // pass|fail|conditional
+  1674→  checklist        Json // {items: [{name, passed, notes}]}
+  1675→  defectsFound     String?
+  1676→  reworkRequired   Boolean      @default(false)
+  1677→  reworkNotes      String?
+  1678→  approvedAt       DateTime?
+  1679→  approvedBy       String?
+  1680→  notes            String?
+  1681→  version          Int          @default(1) // LAW-07
+  1682→  createdAt        DateTime     @default(now())
+  1683→  updatedAt        DateTime     @updatedAt
+  1684→
+  1685→  @@unique([tenantId, qcNumber])
+  1686→  @@index([serviceOrderId])
+  1687→  @@map("service_quality_checks")
+  1688→}
+  1689→
+  1690→model TechnicianAssignment {
+  1691→  id                String    @id @default(cuid())
+  1692→  tenantId          String
+  1693→  technicianPartyId String
+  1694→  serviceOrderId    String?
+  1695→  serviceCenterId   String?
+  1696→  assignmentType    String    @default("primary") // primary|secondary|supervisor
+  1697→  status            String    @default("active") // active|completed|reassigned|cancelled
+  1698→  assignedAt        DateTime  @default(now())
+  1699→  assignedBy        String?
+  1700→  startTime         DateTime?
+  1701→  endTime           DateTime?
+  1702→  notes             String?
+  1703→  metadata          Json?
+  1704→  createdAt         DateTime  @default(now())
+  1705→  updatedAt         DateTime  @updatedAt
+  1706→
+  1707→  @@index([technicianPartyId, status])
+  1708→  @@index([serviceOrderId])
+  1709→  @@map("technician_assignments")
+  1710→}
+  1711→
+  1712→// ============================================================
+  1713→// SPRINT 6 — FINANCIAL / ACCOUNTING CORE
+  1714→// ============================================================
+  1715→// LAW-34: Only Financial Context May Post To General Ledger
+  1716→// LAW-35: Every Journal Entry Must Balance
+  1717→// LAW-36: Closed Fiscal Period Is Immutable
+  1718→// ============================================================
+  1719→
+  1720→model ChartOfAccount {
+  1721→  id               String           @id @default(cuid())
+  1722→  tenantId         String
+  1723→  accountCode      String // e.g., '1000', '1100', '4000'
+  1724→  accountName      String
+  1725→  accountNameEn    String?
+  1726→  accountType      String // asset|liability|equity|revenue|expense
+  1727→  parentAccountId  String?
+  1728→  parent           ChartOfAccount?  @relation("AccountTree", fields: [parentAccountId], references: [id])
+  1729→  children         ChartOfAccount[] @relation("AccountTree")
+  1730→  level            Int              @default(0)
+  1731→  isPostable       Boolean          @default(true) // leaf vs header
+  1732→  isControlAccount Boolean          @default(false) // AR, AP control accounts
+  1733→  isActive         Boolean          @default(true)
+  1734→  openingBalance   Float            @default(0)
+  1735→  currencyCode     String           @default("IRR")
+  1736→  description      String?
+  1737→  metadata         Json?
+  1738→  version          Int              @default(1) // LAW-07
+  1739→  createdAt        DateTime         @default(now())
+  1740→  updatedAt        DateTime         @updatedAt
+  1741→  deletedAt        DateTime?
+  1742→
+  1743→  journalLines JournalEntryLine[]
+  1744→
+  1745→  @@unique([tenantId, accountCode])
+  1746→  @@index([parentAccountId])
+  1747→  @@map("chart_of_accounts")
+  1748→}
+  1749→
+  1750→model FiscalYear {
+  1751→  id        String    @id @default(cuid())
+  1752→  tenantId  String
+  1753→  yearCode  String // e.g., '1403', '1404'
+  1754→  name      String
+  1755→  startDate DateTime
+  1756→  endDate   DateTime
+  1757→  status    String    @default("open") // open|closed
+  1758→  closedAt  DateTime?
+  1759→  closedBy  String?
+  1760→  createdAt DateTime  @default(now())
+  1761→  updatedAt DateTime  @updatedAt
+  1762→
+  1763→  periods FiscalPeriod[]
+  1764→
+  1765→  @@unique([tenantId, yearCode])
+  1766→  @@map("fiscal_years")
+  1767→}
+  1768→
+  1769→model FiscalPeriod {
+  1770→  id           String     @id @default(cuid())
+  1771→  tenantId     String
+  1772→  fiscalYearId String
+  1773→  fiscalYear   FiscalYear @relation(fields: [fiscalYearId], references: [id])
+  1774→  periodCode   String // e.g., '1403-Q1', '1403-01'
+  1775→  name         String
+  1776→  periodType   String // month|quarter|year
+  1777→  startDate    DateTime
+  1778→  endDate      DateTime
+  1779→  status       String     @default("open") // open|temporarily_closed|closed
+  1780→  closedAt     DateTime?
+  1781→  closedBy     String?
+  1782→  notes        String?
+  1783→  createdAt    DateTime   @default(now())
+  1784→  updatedAt    DateTime   @updatedAt
+  1785→
+  1786→  @@unique([tenantId, periodCode])
+  1787→  @@map("fiscal_periods")
+  1788→}
+  1789→
+  1790→model CostCenter {
+  1791→  id          String       @id @default(cuid())
+  1792→  tenantId    String
+  1793→  code        String // e.g., 'CC-001'
+  1794→  name        String
+  1795→  parentId    String?
+  1796→  parent      CostCenter?  @relation("CostCenterTree", fields: [parentId], references: [id])
+  1797→  children    CostCenter[] @relation("CostCenterTree")
+  1798→  level       Int          @default(0)
+  1799→  isActive    Boolean      @default(true)
+
+[showing lines 1100-1799 of 2371; use offset=1800 with limit to continue reading]

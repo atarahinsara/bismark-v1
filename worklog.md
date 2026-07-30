@@ -2161,3 +2161,75 @@ Stage Summary:
 - امتیاز کلی سلامت پروژه: ۴/۱۰
 - توصیه فوری: اجرای اسپرینت Security (۲ هفته) + اسپرینت Infrastructure (۲ هفته) قبل از هر deployment production
 - خروجی: `docs/technical-audit.md` (۳۶۱۳ خط، ۲۵ بخش + ۳ پیوست)
+
+---
+
+Task ID: BLUEPRINT
+Agent: General-Purpose Sub Agent
+Task: Write BISMARK Product & Implementation Blueprint
+
+Work Log:
+- مطالعه کامل `/home/z/my-project/worklog.md` (۲۱۶۳ خط) برای درک تاریخچه پروژه
+- مطالعه `/home/z/my-project/docs/technical-audit.md` (۳۶۱۳ خط) برای درک وضعیت واقعی پیاده‌سازی
+- مطالعه `prisma/schema.prisma` (۲۳۷۰ خط، ۸۹ مدل) — تأیید ساختار کامل
+- مطالعه `src/lib/saga/saga-manager.ts` (۲۸۰ خط) — ۲ تعریف Saga (sales_order_fulfillment, return_processing)
+- مطالعه `src/lib/event-handlers/index.ts` (۱۷۶ خط) — هندلرهای cross-context (Inventory, Billing, Saga, Financial, Warranty, Service)
+- مطالعه `src/lib/financial-handlers.ts` (۲۵۳ خط) — تبدیل ۴ رویداد به JournalEntry (invoice.issued, payment.received, credit_note.issued, refund.completed)
+- مطالعه `src/lib/event-catalog.ts` (۳۲۵ خط، ۴۶ رویداد)
+- مطالعه `src/lib/shared/helpers/business-code-generator.ts` (۱۴۸ خط، ۲۹ تعریف کد کسب‌وکار)
+- مطالعه `src/lib/modules/notification/services/template-engine.ts` (۵۲۱ خط) — Template Engine با Handlebars-style
+- مطالعه مسیرهای API واقعی: sales-orders, invoices/[id]/issue, warranty-cards/[id]/activate, service-orders/[id]/diagnose, shipments/[id]/ship, workflow/instances/[id]/transition, rules/evaluate, reports/dashboard
+- مطالعه `src/lib/api-helpers.ts` — تأیید نبود auth در getTenantId()
+- فهرست‌بندی تمام ۱۱۸ مسیر API با `find ... -name route.ts`
+- فهرست‌بندی ۵۴ قانون معماری (LAW-04 تا LAW-57)
+- نگارش سند جامع BLUEPRINT به `/home/z/my-project/docs/bismark-blueprint.md` (۸۷۲۱ خط، ۳۰ بخش + ۳۵ قرارداد پیاده‌سازی)
+- پوشش ۳۰ بخش:
+  1. چشم‌انداز محصول (Product Vision)
+  2. مدل کسب‌وکار (Business Model)
+  3. مشتریان هدف (Target Customers)
+  4. نقش‌های کاربری (User Roles)
+  5. فرایندهای کامل کسب‌وکار (Complete Business Processes) — ۹ فرایند با trace کد واقعی
+  6. سفرهای کاربری سرتاسری (End-to-End User Journeys) — ۱۷ سناریو
+  7. چرخه حیات موجودیت‌ها (Entity Lifecycle) — ۲۵ موجودیت با ماشین حالت
+  8. قوانین کسب‌وکار (Business Rules) — ۵۴ قانون LAW + قوانین اعتبارسنجی
+  9. مدل دامنه (Domain Model) — Aggregates, Value Objects, Domain Services
+  10. بسترهای محدود (Bounded Contexts) — ۱۸ BC با Context Map
+  11. مدل پایگاه داده (Database Model) — ۸۹ مدل با فیلدهای کلیدی
+  12. قرارداد API (API Contract) — ۱۱۸ مسیر گروه‌بندی‌شده
+  13. مدل رویداد (Event Model) — ۴۶ رویداد + ۶ رویداد غیررسمی
+  14. مدل گردش کار (Workflow Model) — states/transitions + الگوریتم LAW-49
+  15. مدل امنیت (Security Model) — موجود vs مفقود (Critical Gaps)
+  16. مدل دسترسی (Permission Model) — شکاف‌های بحرانی + ۴۰+ permission پیشنهادی
+  17. مدل مالی (Financial Model) — ۱۴ مدل + تبدیل رویداد به JE
+  18. مدل انبار (Inventory Model) — Ledger Pattern (LAW-05)
+  19. مدل گارانتی (Warranty Model) — ۵ مدل + LAW-28/29/30
+  20. مدل خدمت (Service Model) — ۸ مدل + LAW-31/32/33
+  21. مدل اعلان (Notification Model) — ۵ مدل + ۱۰ Provider + Template Engine
+  22. مدل گزارش (Reporting Model) — ۶ گزارش مالی
+  23. مدل ورود/خروج داده (Import/Export) — NOT IMPLEMENTED
+  24. مدل هوش مصنوعی (AI/Automation) — NOT IMPLEMENTED
+  25. مدل چندمستاجری (Multi-Tenant) — Shared DB + tenant_id
+  26. مدل مقیاس‌پذیری (Scalability) — Bottleneck‌ها + معماری پیشنهادی
+  27. پشتیبان‌گیری و بازیابی (Backup/DR) — NOT IMPLEMENTED
+  28. استراتژی تست (Testing Strategy) — ۳ فایل فعلی + هرم تست پیشنهادی
+  29. معماری تولید (Production Architecture) — Laravel + PostgreSQL + Redis
+  30. استراتژی مهاجرت (Migration Strategy) — SQLite → PostgreSQL در ۶ مرحله
+- نگارش ۳۵ قرارداد پیاده‌سازی (Implementation Contract) با ۱۶ بخش برای هر قابلیت:
+  Business Goal, User, Preconditions, Flow, Business Rules, Entities, Database Changes, APIs, Events, Permissions, Security, Edge Cases, Failure Handling, Tests, Acceptance Criteria, Status
+- خلاصه نهایی: ۱۵ IMPLEMENTED (۴۳٪), ۳ PARTIALLY IMPLEMENTED (۹٪), ۱۷ NOT IMPLEMENTED (۴۸٪)
+- شناسایی ۵ قابلیت بحرانی برای پیاده‌سازی اول:
+  1. Authentication & Session Management (۲ هفته)
+  2. RBAC & Permission System (۱.۵ هفته)
+  3. PostgreSQL Migration (۲ هفته)
+  4. Security Hardening (۱.۵ هفته)
+  5. Scheduler & Automation (۱ هفته)
+- زمان کل برای ۵ قابلیت بحرانی: ~۸ هفته
+
+Stage Summary:
+- سند BLUEPRINT-2025-01 با ۸۷۲۱ خط به `/home/z/my-project/docs/bismark-blueprint.md` نوشته شد
+- مبنای سند: کد واقعی موجود (۸۹ مدل، ۱۱۸ مسیر، ۵۴ قانون، ۴۶ رویداد) + سند چشم‌انداز
+- ۳۰ بخش product discovery و reverse engineering + ۳۵ قرارداد پیاده‌سازی
+- زبان سند: فارسی (مطابق زبان ارتباط کاربر)
+- هر قرارداد پیاده‌سازی به‌گونه‌ای دقیق نوشته شده که ایجنت یا تیم آینده بتواند بدون حدس و گمان قابلیت را پیاده‌سازی کند
+- ۵ قابلیت بحرانی با اولویت Critical/High شناسایی شد
+- خروجی: مرجع رسمی برای اجرای قابلیت‌های NOT IMPLEMENTED در آینده
