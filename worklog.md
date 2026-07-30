@@ -2088,3 +2088,76 @@ Stage Summary:
 - LAW-57: ✅ Idempotent (unique [tenantId, idempotencyKey]) + retryable (5 attempts, backoff 1m/5m/30m/2h) + DLQ
 - Definition of Done: ✅ all 8 criteria met
 - آماده Sprint 7.4 (Automation & Scheduler)
+
+---
+
+Task ID: AUDIT
+Agent: General-Purpose Sub Agent (Technical Auditor)
+Task: Comprehensive Technical Architecture & Security Audit — BISMARK ERP
+
+Work Log:
+- مطالعه `/home/z/my-project/worklog.md` (۱۲۰ خط اول) برای درک ادعاهای تاریخی پروژه
+- بررسی ساختار فایل‌سیستم واقعی پروژه با `LS` و `Glob`
+- شمارش واقعی مدل‌های Prisma: ۸۹ مدل (نه ۹۶ ادعا شده) با `grep -c "^model " prisma/schema.prisma`
+- شمارش واقعی مسیرهای API: ۱۱۸ مسیر (نه ۲۴۴ ادعا شده) با `find ... -name route.ts | wc -l`
+- شمارش واقعی viewهای UI: ۱۷ فایل view (نه ۳۶ ادعا شده) در `src/components/views/`
+- شمارش واقعی فایل‌های تست: ۳ فایل (نه ۲۱ ادعا شده) در `src/tests/unit/`
+- شمارش واقعی فایل‌های قانون: ۵۴ فایل LAW-04 تا LAW-57 (نه LAW-01 تا LAW-64 ادعا شده)
+- شمارش واقعی ماژول‌ها: ۳ دایرکتوری (notification, product, shared) (نه ۷+ ادعا شده)
+- خواندن کامل `prisma/schema.prisma` (۲۳۷۰ خط، ۸۹ مدل)
+- خواندن `package.json` (۹۶ خط، ۳۴ production + ۱۱ dev dependencies)
+- خواندن `next.config.ts` (۱۲ خط — `ignoreBuildErrors: true` و `reactStrictMode: false` کشف شد)
+- خواندن `Dockerfile` (۳۲ خط، چندمرحله‌ای با `oven/bun:1`)
+- خواندن `docker-compose.production.yml` (۱۳۹ خط — ارجاع به فایل‌های مفقود `src/workers/*.ts` و `nginx.conf` و `ssl/`)
+- خواندن `.env` (۱ خط فقط `DATABASE_URL`)
+- خواندن `.github/workflows/ci-cd.yml` (۸۷ خط — `bun audit || true` و integration-tests job fail)
+- خواندن `vitest.config.ts` (۲۰ خط — coverage فقط `src/lib/**`)
+- خواندن `src/tests/unit/shared-kernel.test.ts` (۲۰۷ خط، ۲۶ تست)
+- خواندن `src/tests/unit/architecture-laws.test.ts` (۱۴۵ خط، ۱۷ تست)
+- خواندن `src/tests/unit/business-logic.test.ts` (۱۶۰ خط، ۱۹ تست)
+- خواندن `src/lib/shared/index.ts` (۱۱۴ خط — export LAW-04 تا LAW-57، قوانین ۵۸-۶۴ export نشده‌اند)
+- خواندن `src/lib/db.ts` (۱۲ خط — `log: ['query']` همیشه فعال)
+- خواندن `src/lib/api-helpers.ts` (۷۷ خط — نبود auth در `getTenantId`)
+- خواندن `src/lib/api-client.ts` (۱۱۱۰ خط — نوع‌بندی camelCase)
+- خواندن `src/lib/event-catalog.ts` (۳۲۵ خط، ۴۶ رویداد)
+- خواندن `src/lib/types.ts` (۱۳۶ خط — نوع‌بندی snake_case، تضاد با api-client)
+- خواندن `src/lib/shared/infra/unit-of-work.ts` (۶۵ خط — LAW-12 پیاده‌سازی)
+- خواندن `src/lib/shared/infra/idempotency-helper.ts` (۱۱۴ خط — LAW-06 پیاده‌سازی)
+- خواندن `src/lib/shared/infra/optimistic-lock-helper.ts` (۹۰ خط — LAW-07 پیاده‌سازی)
+- خواندن `src/lib/shared/infra/prisma-event-bus.ts` (۴۲ خط — in-process EventBus)
+- خواندن `src/lib/shared/outbox/dispatcher.ts` (۱۱۸ خط — polling 5s، BATCH_SIZE=100)
+- خواندن `src/lib/shared/outbox/publisher.ts` (۵۵ خط — in-process listeners)
+- خواندن `src/lib/shared/inbox/inbox-worker.ts` (۱۲۸ خط — exactly-once با processed_messages)
+- خواندن `src/lib/shared/laws/law-04.ts`, `law-05.ts`, `law-07.ts`, `law-08.ts`, `law-57.ts`
+- خواندن `src/lib/shared/value-objects/uuid-v7.ts`, `money.ts`
+- خواندن `src/lib/shared/exceptions/domain-exception.ts`
+- خواندن `src/lib/shared/helpers/business-code-generator.ts` (۱۴۸ خط، ۲۳ تعریف کد)
+- خواندن `src/lib/saga/saga-manager.ts` (۲۸۰ خط، ۲ Saga: sales_order_fulfillment, return_processing)
+- خواندن `src/lib/event-handlers/index.ts` (۱۷۶ خط — cross-context handlers با console.log ناقص)
+- خواندن `src/lib/financial-handlers.ts` (۲۵۳ خط — LAW-34 JE creation از events)
+- خواندن `src/lib/modules/notification/services/notification-service.ts` (۸۸۲ خط — dispatch + retry engine)
+- خواندن `src/lib/seed.ts` (۱۸۱ خط — seed ناقص، فقط tenant/users/roles/branches)
+- خواندن چندین مسیر API: `products/route.ts`, `sales-orders/route.ts`, `inventory-transactions/route.ts`, `journal-entries/route.ts`, `workflow/instances/route.ts`, `rule-sets/route.ts`, `notifications/route.ts`, `system/health/route.ts`
+- خواندن `src/app/page.tsx` (۱۴۶۴ خط — monolithic، LoginScreen + Sidebar + Topbar + 6 view inline + import از mock-data.ts)
+- خواندن `src/components/views/notifications-view.tsx` (۸۰ خط اول — الگوی view component)
+- خواندن `backend/bismark-laravel/composer.json` و `database/migrations/2025_01_15_000010_create_users_table.php`
+- خواندن `docs/adr-index.md` و `docs/production-readiness-checklist.md`
+- تأیید عدم وجود دایرکتوری‌های `src/lib/modules/{scheduler,automation,monitoring,bi,ai,perf,security}/` و `src/workers/` و `scripts/` و `nginx.conf` و `ssl/`
+- تأیید عدم وجود مسیرهای `/api/v1/{auth,scheduler,automations,monitoring,events,dead-letters,feature-flags,admin,bi,analytics,forecasts,ai,reports/definitions,executive,performance,security,deployment}`
+- تأیید عدم وجود viewهای UI مربوط به Sprint 7.4+
+- تأیید عدم وجود فایل‌های تست Sprint 9+ و دایرکتوری `src/tests/integration/`
+- نگارش ممیزی جامع ۲۵-بخشی به `/home/z/my-project/docs/technical-audit.md` (۳۶۱۳ خط)
+- پوشش کامل ۲۵ بخش: معرفی، معماری، ساختار، پایگاه داده، کارایی، امنیت، احراز هویت، API، فرانت‌اند، بک‌اند، وابستگی‌ها، پیکربندی، استقرار، پشتیبان‌گیری، مقیاس‌پذیری، آمادگی آینده، شطرنج (N/A)، ورود داده، تست، کیفیت کد، مشکلات کنونی، بدهی فنی، معماری پیشنهادی، نقشه راه، خلاصه اجرایی + ۳ پیوست
+- شناسایی ۸ Critical Issue، ۱۲ High Issue، ۲۰ Medium Issue
+- شناسایی ۴۰ مورد بدهی فنی با تخمین ۲۵۰ روز-کار
+- ارائه نقشه راه ۱۲-اسپرینتی (۲۵ هفته) برای رسیدن به production-grade ERP
+
+Stage Summary:
+- وضعیت واقعی پروژه: Sprint 1 تا 7.3 پیاده‌سازی شده، Sprint 7.4 تا 12 فقط در worklog ادعا شده و در کد موجود نیست
+- سه یافته بحرانی برتر:
+  1. 🚨 نبود احراز هویت واقعی — تمام ۱۱۸ مسیر API بدون auth قابل دسترسی
+  2. 🚨 docker-compose.production.yml به ۴+ فایل مفقود ارجاع می‌دهد (workers, nginx.conf, ssl)
+  3. 🚨 تضاد گسترده worklog با واقعیت (۸۹ مدل نه ۹۶، ۱۱۸ مسیر نه ۲۴۴، ۱۷ view نه ۳۶، ۳ تست نه ۲۱، ۵۴ قانون نه ۶۴، ۳ ماژول نه ۷+)
+- امتیاز کلی سلامت پروژه: ۴/۱۰
+- توصیه فوری: اجرای اسپرینت Security (۲ هفته) + اسپرینت Infrastructure (۲ هفته) قبل از هر deployment production
+- خروجی: `docs/technical-audit.md` (۳۶۱۳ خط، ۲۵ بخش + ۳ پیوست)
