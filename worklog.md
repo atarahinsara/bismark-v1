@@ -2398,3 +2398,68 @@ Stage Summary:
 - زمان تا Enterprise کامل: ~30-40 هفته
 - توصیه نهایی: Architecture Freeze حفظ شود، Master Prompt فعلی به AI داده نشود (چون چیزهای حل‌شده را دوباره طراحی می‌کند)، از این Gap Analysis به‌عنوان مرجع واحد استفاده شود
 - خروجی: `docs/bismark-gap-analysis-roadmap.md` (659 خط)
+
+---
+Task ID: FINAL-GAP-ROADMAP
+Agent: General-Purpose Sub Agent (Final Gap Analyst & Roadmap Architect)
+Task: Produce final BISMARK Gap Analysis, Target Architecture & Phased Implementation Plan — analysis only, no code.
+
+Work Log:
+- بررسی عمیق Repository با دستورات واقعی:
+  • `grep "^model " prisma/schema.prisma` → 116 model (فهرست کامل استخراج شد)
+  • `find src/app/api/v1 -name "route.ts"` → 154 route (فهرست کامل استخراج شد)
+  • `grep -rl "requirePermission" src/app/api/` → 148 route با RBAC (96%)
+  • `ls src/lib/shared/laws/` → 54 LAW (LAW-04 تا LAW-57)
+  • `ls src/lib/modules/` → 2 module (notification, product)
+  • `ls src/lib/shared/outbox/ src/lib/shared/inbox/` → Outbox + Inbox موجود
+  • `grep "sales_order_fulfillment\|return_processing" src/lib/saga/saga-manager.ts` → 2 Saga
+  • `find src/tests -name "*.test.ts"` → 5 unit test file
+  • `ls .github/workflows/` → ci-cd.yml موجود ولی ناقص
+  • `cat .env` → فقط DATABASE_URL (SQLite)
+  • `grep "^model Device\|^model OfflineSyncQueue" prisma/schema.prisma` → 0 (تأیید gap)
+  • `ls src/app/api/v1/mobile/ 2>/dev/null` → 0 (تأیید gap)
+  • `grep -rln "opentelemetry\|prometheus\|grafana" src/` → 0 (تأیید gap)
+  • `ls scripts/` → فقط migrate-to-postgres.sh (تأیید no backup)
+- نگارش سند جامع به `/home/z/my-project/docs/bismark-final-gap-analysis-and-roadmap.md` (2418 خط، 96KB، 28 بخش):
+  • بخش ۱: Executive Summary (4 محور فاصله + 10 پاسخ کلیدی)
+  • بخش ۲: Current State (30 component با status)
+  • بخش ۳: Existing Capabilities — DO NOT REDESIGN (43 قابلیت موجود)
+  • بخش ۴: Master Prompt Mapping (34 capability تطبیق‌شده)
+  • بخش ۵: Gap Analysis (16 Gap با severity)
+  • بخش ۶: Target State (10 Principle + Architecture Freeze)
+  • بخش ۷: Domain Gap (18 BC + gaps)
+  • بخش ۸: Database Gap (22 model جدید + 3 modify)
+  • بخش ۹: API Gap (6 category missing + 60+ route جدید)
+  • بخش ۱۰: Security Gap (13 item با priority)
+  • بخش ۱۱: Mobile Gap (12 item)
+  • بخش ۱۲: Technician Gap (11 item)
+  • بخش ۱۳: Dispatch & SLA Gap (Algorithm + V1 strategy)
+  • بخش ۱۴: Customer 360 Gap (Projection strategy + fields)
+  • بخش ۱۵: CRM Gap (15 feature)
+  • بخش ۱۶: Reporting & BI Gap (26 report needed)
+  • بخش ۱۷: Infrastructure Gap (15 component)
+  • بخش ۱۸: Observability Gap (Logging + Metrics + Tracing + Alerting)
+  • بخش ۱۹: Testing Gap (15 test type + 15 invariant)
+  • بخش ۲۰: Production Readiness (55% current → 95% final)
+  • بخش ۲۱: Target Architecture (diagram + justification)
+  • بخش ۲۲: Architecture Decisions (10 ADR)
+  • بخش ۲۳: Anti-Overengineering Review (19 technology reviewed)
+  • بخش ۲۴: Phased Roadmap (Phase 0-10 با detail کامل)
+  • بخش ۲۵: Phase-by-Phase Exit Gates
+  • بخش ۲۶: Risk Matrix (15 risk)
+  • بخش ۲۷: Final Readiness Score (weighted scoring)
+  • بخش ۲۸: Final Recommendation (10 پاسخ + summary table + visual roadmap)
+
+Stage Summary:
+- سند نهایی در `docs/bismark-final-gap-analysis-and-roadmap.md` (2418 خط)
+- مبنای تحلیل: بررسی واقعی Repository (نه حدس)
+- 16 Gap شناسایی شد با severity (P0-P4)
+- 10 Phase تعریف شد با Exit Gate مشخص
+- 22 Model جدید + 3 Modify برای Database Gap
+- 60+ API Route جدید برای 6 category
+- 10 ADR (Architecture Decision Record)
+- 19 Technology در Anti-Overengineering Review بررسی شد (14 رد، 5 قبول)
+- 15 Risk در Risk Matrix
+- Readiness Score: Current 55% → Final 95%
+- توصیه نهایی: Architecture Freeze حفظ شود، Phase 2 (Production Foundation) بحرانی‌ترین مرحله بعدی است
+- هیچ کدی تغییر نکرد، هیچ migration اجرا نشد، هیچ package نصب نشد
