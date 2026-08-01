@@ -3,20 +3,21 @@ import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
 import { IdempotencyHelper, UnitOfWork } from '@/lib/shared'
 import { DomainException, ValidationException, NotFoundException } from '@/lib/shared'
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 
 interface Params { params: { id: string } }
 
 /**
  * POST /api/v1/sales-orders/{id}/approve
  * Approve sales order — transitions draft → pending_approval → approved.
- * Idempotent (LAW-06). Uses Unit of Work (LAW-12). Outbox event (LAW-08).
- *
- * NOTE: This does NOT create Journal Entries (LAW-13).
- * Financial Context will listen to 'sales_order.approved' event and
- * create the appropriate accounting entries.
+ * Requires: sales.approve
  */
 export async function POST(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'sales.approve')
+
     const idempotent = await IdempotencyHelper.check(request)
     if (idempotent.cached && idempotent.response) return idempotent.response
 

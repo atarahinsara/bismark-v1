@@ -3,13 +3,19 @@ import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse, parseQueryParams } from '@/lib/api-helpers'
 import { BusinessCodeGenerator, IdempotencyHelper, UnitOfWork } from '@/lib/shared'
 import { DomainException, ValidationException, NotFoundException } from '@/lib/shared'
+import { requireAuth, requirePermission, forbiddenResponse, unauthorizedResponse } from '@/lib/rbac'
 
 /**
  * GET /api/v1/sales-orders
  * List sales orders with filtering.
+ * Requires: sales.read
  */
 export async function GET(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'sales.read')
+
     const tenantId = await getTenantId()
     const params = parseQueryParams(request)
     const url = new URL(request.url)
@@ -48,9 +54,14 @@ export async function GET(request: NextRequest) {
  * POST /api/v1/sales-orders
  * Create a new sales order with lines (Idempotent — LAW-06).
  * Uses Unit of Work (LAW-12) + Optimistic Lock (LAW-07) + Outbox (LAW-08).
+ * Requires: sales.create
  */
 export async function POST(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'sales.create')
+
     const idempotent = await IdempotencyHelper.check(request)
     if (idempotent.cached && idempotent.response) return idempotent.response
 
