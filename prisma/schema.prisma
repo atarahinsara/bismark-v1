@@ -3167,3 +3167,180 @@ model TechnicianLocation {
   @@index([tenantId, serviceOrderId, recordedAt])
   @@map("technician_locations")
 }
+
+// ============================================================
+// GOLDEN SLICE — Phase 3 (Master Spec v1.0)
+// ============================================================
+
+// --- Queen Correction 1: TechnicianJob ---
+// مستقل از ServiceOrder. یک ServiceOrder می‌تواند چند Job داشته باشد.
+
+model TechnicianJob {
+  id              String   @id @default(cuid())
+  tenantId        String
+  jobNumber       String   // business code: JOB-1403-00001
+  serviceRequestId String? // link to ServiceRequest (loose FK)
+  serviceOrderId   String? // link to ServiceOrder (loose FK)
+  technicianId     String? // FK to Party (technician)
+  customerId       String  // FK to Party (customer)
+  productInstanceId String? // FK to ProductInstance (loose)
+  status           String   @default("created") // created|assigned|accepted|in_progress|completed|cancelled|failed
+  priority         String   @default("normal") // low|normal|high|urgent|critical
+  scheduledStartTime DateTime?
+  scheduledEndTime   DateTime?
+  actualStartTime    DateTime?
+  actualEndTime      DateTime?
+  acceptedAt         DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  serviceReportId    String? // FK to ServiceReport (loose)
+  notes              String?
+  metadata           Json?
+  version            Int      @default(1) // LAW-07
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([tenantId, jobNumber])
+  @@index([tenantId, technicianId, status])
+  @@index([tenantId, serviceRequestId])
+  @@index([tenantId, serviceOrderId])
+  @@index([tenantId, customerId, createdAt])
+  @@map("technician_jobs")
+}
+
+// --- Queen Correction 2: Van Stock ---
+
+model VanStock {
+  id              String   @id @default(cuid())
+  tenantId        String
+  technicianId    String   // FK to Party (technician who owns the van)
+  productId       String   // FK to Product (loose)
+  quantity        Float    @default(0)
+  reservedQuantity Float   @default(0)
+  lastRestockedAt DateTime?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  ledger          VanStockLedger[]
+
+  @@unique([tenantId, technicianId, productId])
+  @@index([tenantId, technicianId])
+  @@map("van_stocks")
+}
+
+model VanStockLedger {
+  id              String   @id @default(cuid())
+  tenantId        String
+  vanStockId      String
+  vanStock        VanStock @relation(fields: [vanStockId], references: [id])
+  technicianId    String
+  productId       String
+  transactionType String   // restock|consume|transfer_in|transfer_out|adjustment|return
+  quantity        Float    // positive=in, negative=out
+  balanceAfter    Float    // snapshot of quantity after this transaction
+  referenceType   String?  // technician_job|van_transfer|van_restock|manual_adjustment
+  referenceId     String?
+  performedBy     String?
+  performedAt     DateTime @default(now())
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, vanStockId, performedAt])
+  @@index([tenantId, technicianId, productId, performedAt])
+  @@map("van_stock_ledger")
+}
+
+model VanTransfer {
+  id              String   @id @default(cuid())
+  tenantId        String
+  transferNumber  String   // business code: VTR-1403-00001
+  fromWarehouseId String?  // source warehouse (null = direct from supplier)
+  toTechnicianId  String   // destination technician
+  productId       String
+  quantity        Float
+  status          String   @default("draft") // draft|shipped|received|cancelled
+  shippedAt       DateTime?
+  receivedAt      DateTime?
+  shippedBy       String?
+  receivedBy      String?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, transferNumber])
+  @@index([tenantId, toTechnicianId, status])
+  @@index([tenantId, productId])
+  @@map("van_transfers")
+}
+
+model VanRestockRequest {
+  id              String   @id @default(cuid())
+  tenantId        String
+  requestNumber   String   // business code: VRR-1403-00001
+  technicianId    String   // requesting technician
+  productId       String
+  quantityRequested Float
+  quantityApproved  Float?
+  status          String   @default("pending") // pending|approved|rejected|fulfilled|cancelled
+  requestedAt     DateTime @default(now())
+  approvedAt      DateTime?
+  approvedBy      String?
+  fulfilledAt     DateTime?
+  fulfilledBy     String?
+  rejectionReason String?
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, requestNumber])
+  @@index([tenantId, technicianId, status])
+  @@index([tenantId, productId])
+  @@map("van_restock_requests")
+}
+
+// --- ServiceReport ---
+
+model ServiceReport {
+  id              String   @id @default(cuid())
+  tenantId        String
+  reportNumber    String   // business code: RPT-1403-00001
+  technicianJobId String   // FK to TechnicianJob (loose)
+  serviceOrderId  String?  // FK to ServiceOrder (loose)
+  technicianId    String   // FK to Party (technician)
+  reportDate      DateTime @default(now())
+  status          String   @default("draft") // draft|submitted|approved|rejected
+  workSummary     String
+  workPerformed   Json     // [{ step, description, duration_minutes }]
+  partsUsed       Json     // [{ productId, quantity, vanStockLedgerId? }]
+  laborHours      Float    @default(0)
+  laborCost       Float    @default(0)
+  partsCost       Float    @default(0)
+  totalCost       Float    @default(0)
+  photosBefore    Json?    // [{ fileId, url }]
+  photosAfter     Json?    // [{ fileId, url }]
+  customerSignature String? // base64 or fileId
+  customerFeedback String?
+  customerRating   Int?    // 1-5
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  approvedBy      String?
+  rejectionReason String?
+  notes           String?
+  metadata        Json?
+  version         Int      @default(1) // LAW-07
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, reportNumber])
+  @@index([tenantId, technicianJobId])
+  @@index([tenantId, technicianId, reportDate])
+  @@index([tenantId, status])
+  @@map("service_reports")
+}

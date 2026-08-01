@@ -165,4 +165,10 @@ export const BUSINESS_CODE_DEFINITIONS: Record<
   technician_skill: { prefix: 'TSK', padding: 5 },
   technician_availability: { prefix: 'TAV', padding: 5 },
   technician_performance: { prefix: 'TPF', padding: 5 },
+
+  // Golden Slice — Phase 3
+  technician_job: { prefix: 'JOB', padding: 5 },
+  van_transfer: { prefix: 'VTR', padding: 5 },
+  van_restock_request: { prefix: 'VRR', padding: 5 },
+  service_report: { prefix: 'RPT', padding: 5 },
 }
