@@ -2328,3 +2328,73 @@ Stage Summary:
 - Architecture Freeze حفظ شد
 - P0 Blocker (F-02) کاملاً برطرف شد — توسعه Feature جدید مجاز است
 - خروجی: `docs/audit-report-v4.md` (485 خط، 14 بخش)
+
+---
+Task ID: GAP-ANALYSIS-ROADMAP
+Agent: General-Purpose Sub Agent (Gap Analyst)
+Task: Apply Master System Analysis Prompt (39 sections) to existing BISMARK project — analysis & phasing only, no code.
+
+Work Log:
+- مطالعه پیام کاربر با Master Prompt 39-بخشی + تحلیل خود کاربر
+- بررسی واقعی فایل‌های پروژه برای verify کردن ادعاهای کاربر:
+  • `grep -c "^model " prisma/schema.prisma` → 116 model
+  • `find src/app/api -name "route.ts" | wc -l` → 154 route
+  • `ls src/components/views/*.tsx | wc -l` → 17 view
+  • `ls src/lib/shared/laws/ | wc -l` → 54 LAW
+  • `grep -E "eventType:" src/lib/event-catalog.ts | wc -l` → 46 event
+- بررسی Gap‌های ادعا‌شده توسط کاربر:
+  • Device model: 0 (تأیید شد — مفقود)
+  • OfflineSyncQueue model: 0 (تأیید شد — مفقود)
+  • /api/v1/mobile/ directory: 0 (تأیید شد — مفقود)
+  • Flutter/mobile app directory: 0 (تأیید شد — مفقود)
+  • Dispatch Engine files: فقط notification service (نه assignment engine)
+  • Customer 360 Projection: 0 (تأیید شد — مفقود)
+  • CRM models (Opportunity, Campaign, Task): 0 (فقط Lead + CustomerInteraction موجود)
+  • Reporting: 6 route مالی موجود، dynamic report builder نه
+  • Backup/DR scripts: 0 (فقط migrate-to-postgres.sh)
+  • Observability (OpenTelemetry/Prometheus): 0
+  • IaC (Terraform): 0
+  • MFA/OTP: 0
+  • Advanced Search (Elasticsearch): 0
+- تأیید قابلیت‌های موجود:
+  • 116 model با tenantId
+  • 54 LAW enforce شده
+  • Outbox/Inbox/Saga Pattern پیاده‌سازی شده
+  • 46 Domain Event
+  • JWT + scrypt + Session Revocation
+  • 12 Security Headers
+  • Rate Limiting
+  • Audit Log Immutable
+  • Ledger Pattern برای Inventory + Finance
+  • Workflow + Rule Engine
+  • Notification Platform با 5 Channel
+- نگارش سند جامع به `/home/z/my-project/docs/bismark-gap-analysis-roadmap.md` (659 خط، 12 بخش + 2 پیوست):
+  • بخش ۱: خلاصه اجرایی
+  • بخش ۲: تطبیق با Master Prompt — جدول کامل 34 ردیف
+  • بخش ۳: تحلیل عمیق ۷ Gap اصلی
+  • بخش ۴: آنچه پروژه از قبل حل کرده (34 قابلیت)
+  • بخش ۵: فازبندی نهایی پیشنهادی (Phase 0-10)
+  • بخش ۶: زمان‌بندی کلی
+  • بخش ۷: ۱۲ قانون بحرانی
+  • بخش ۸: ۶ ADR پیشنهادی (Mobile، Accounting، Reporting، Search، Monolith، Offline)
+  • بخش ۹: Anti-Overengineering Review (۱۰ ابزار رد‌شده)
+  • بخش ۱۰: Red-Team Review
+  • بخش ۱۱: نقشه راه اجرایی
+  • بخش ۱۲: جمع‌بندی نهایی
+  • پیوست A: شاخص‌های کلیدی (verified)
+  • پیوست B: خروجی مورد انتظار از هر Phase
+
+Stage Summary:
+- ۷ Gap اصلی تأیید شد (همگی مطابق ادعای کاربر):
+  1. Technician Mobile + Offline Sync (بحرانی)
+  2. Production Backup + DR + PITR (بحرانی)
+  3. Observability + Monitoring + Tracing (زیاد)
+  4. Reporting / BI (زیاد)
+  5. Dispatch + SLA Engine (متوسط)
+  6. Customer 360 + CRM (زیاد)
+  7. CI/CD + Production Infrastructure (زیاد)
+- فازبندی نهایی: Phase 0-10 (Phase 0 و 1 تکمیل‌شده، Phase 2 بحرانی بعدی)
+- زمان تا Production-ready MVP: ~10-14 هفته
+- زمان تا Enterprise کامل: ~30-40 هفته
+- توصیه نهایی: Architecture Freeze حفظ شود، Master Prompt فعلی به AI داده نشود (چون چیزهای حل‌شده را دوباره طراحی می‌کند)، از این Gap Analysis به‌عنوان مرجع واحد استفاده شود
+- خروجی: `docs/bismark-gap-analysis-roadmap.md` (659 خط)
