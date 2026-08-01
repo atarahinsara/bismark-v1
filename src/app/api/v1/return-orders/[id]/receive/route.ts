@@ -103,8 +103,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         message: 'Return received. IN ledger entries created (LAW-16). Inventory updated.',
       },
     })
-    await IdempotencyHelper.store(request, await response.clone().text(), 200)
-    return response
+    const responseBody = await response.text()
+    await IdempotencyHelper.store(request, responseBody, 200, JSON.stringify(body || {}))
+    return new Response(responseBody, { status: response.status, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })
     return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to receive return', statusCode: 500 })

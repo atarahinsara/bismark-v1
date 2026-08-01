@@ -141,13 +141,13 @@ export async function POST(request: NextRequest) {
       include: { _count: { select: { lines: true } } },
     })
 
-    const response = jsonResponse({ data: toDTO(transfer) }, 201)
-    const responseBody = await response.clone().text()
+    const responseBody = JSON.stringify({ data: toDTO(transfer) })
+
 
     // LAW-06: Store idempotency
-    await IdempotencyHelper.store(request, responseBody, 201)
+    await IdempotencyHelper.store(request, responseBody, 201, JSON.stringify(body || {}))
 
-    return response
+    return new Response(responseBody, { status: response.status, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     if (e instanceof DomainException) {
       return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })

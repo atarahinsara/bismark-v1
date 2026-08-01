@@ -29,8 +29,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     await db.fiscalPeriod.update({ where: { id: params.id }, data: { status: 'temporarily_closed' } })
 
     const response = jsonResponse({ data: { id: params.id, status: 'temporarily_closed', message: 'Period soft-closed. Can be reopened.' } })
-    await IdempotencyHelper.store(request, await response.clone().text(), 200)
-    return response
+    const responseBody = await response.text()
+    await IdempotencyHelper.store(request, responseBody, 200, "{}")
+    return new Response(responseBody, { status: response.status, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })
     return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to soft close', statusCode: 500 })

@@ -76,9 +76,10 @@ export async function POST(request: NextRequest, { params }: Params) {
       return newOrder
     })
 
-    const response = jsonResponse({ data: { id: order.id, orderNumber: order.orderNumber, status: 'open', message: 'Service order created from request.' } }, 201)
-    await IdempotencyHelper.store(request, await response.clone().text(), 201)
-    return response
+    const responseBody = JSON.stringify({ data: { id: order.id, orderNumber: order.orderNumber, status: 'open', message: 'Service order created from request.' } })
+
+    await IdempotencyHelper.store(request, responseBody, 201, JSON.stringify(body || {}))
+    return new Response(responseBody, { status: 201, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })
     return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to create service order', statusCode: 500 })

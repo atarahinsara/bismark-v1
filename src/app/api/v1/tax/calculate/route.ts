@@ -72,8 +72,9 @@ export async function POST(request: NextRequest) {
           message: 'No specific tax rule found — using TaxCode default rate.',
         },
       })
-      await IdempotencyHelper.store(request, await response.clone().text(), 200)
-      return response
+      const responseBody = await response.text()
+    await IdempotencyHelper.store(request, responseBody, 200, JSON.stringify(body || {}))
+      return new Response(responseBody, { status: response.status, headers: { 'Content-Type': 'application/json' } })
     }
 
     // LAW-43: Calculate tax using the effective rule
@@ -99,8 +100,9 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    await IdempotencyHelper.store(request, await response.clone().text(), 200)
-    return response
+    const responseBody = await response.text()
+    await IdempotencyHelper.store(request, responseBody, 200, JSON.stringify(body || {}))
+    return new Response(responseBody, { status: response.status, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })
     return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to calculate tax', statusCode: 500 })

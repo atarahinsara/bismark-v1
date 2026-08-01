@@ -190,9 +190,10 @@ export async function POST(request: NextRequest) {
       include: { _count: { select: { lines: true } } },
     })
 
-    const response = jsonResponse({ data: toDTO(result) }, 201)
-    await IdempotencyHelper.store(request, await response.clone().text(), 201)
-    return response
+    const responseBody = JSON.stringify({ data: toDTO(result) })
+
+    await IdempotencyHelper.store(request, responseBody, 201, JSON.stringify(body || {}))
+    return new Response(responseBody, { status: 201, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })
     return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to create journal entry', statusCode: 500 })

@@ -87,7 +87,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       return cn
     })
 
-    const response = jsonResponse({
+const responseBody = JSON.stringify({
       data: {
         id: creditNote.id,
         creditNoteNumber: creditNote.creditNoteNumber,
@@ -96,10 +96,11 @@ export async function POST(request: NextRequest, { params }: Params) {
         totalAmount: creditAmount,
         message: 'Credit note issued. Invoice reversed (LAW-21). Financial will process reversal (LAW-19).',
       },
-    }, 201)
+        })
 
-    await IdempotencyHelper.store(request, await response.clone().text(), 201)
-    return response
+
+    await IdempotencyHelper.store(request, responseBody, 201, JSON.stringify(body || {}))
+    return new Response(responseBody, { status: 201, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })
     return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to create credit note', statusCode: 500 })
