@@ -3058,3 +3058,38 @@ Stage Summary:
 - نمره رسمی: معماری 8.6/10، Production 3/10
 - Roadmap: BUG-03 → Golden Slice → PostgreSQL → Mobile → Dispatch → BI → CRM → Automation → AI
 - هیچ کدی تغییر نکرد
+
+---
+Task ID: BUG-03-FIX
+Agent: General-Purpose Sub Agent (BUG-03 Fixer)
+Task: Fix BUG-03 — response.clone().text() in 60 legacy routes. Systematic fix + runtime verification.
+
+Work Log:
+- Root cause: `response.clone().text()` fails in Turbopack dev mode with "TypeError: unusable" (stream already consumed)
+- Secondary issue: `IdempotencyHelper.store()` without 4th param (requestBody) falls back to `request.clone().text()` which also fails
+- Fix approach:
+  1. Replace `response.clone().text()` with `response.text()` (avoids clone)
+  2. Replace `response.text()` with `JSON.stringify(data)` where possible (avoids stream entirely)
+  3. Add 4th param to IdempotencyHelper.store (requestBody) to avoid request.clone() fallback
+- Files fixed:
+  • 60 files: removed response.clone().text()
+  • 21 files: replaced response.text() with JSON.stringify (single-line pattern)
+  • 39 files: kept response.text() but added 4th param to IdempotencyHelper.store
+  • 0 files remaining with response.clone().text()
+- Runtime Verification (ALL PASS):
+  • POST /sales-orders → 201 ✅ (was 500)
+  • POST /service-requests → 201 ✅ (was 500)
+  • POST /journal-entries → 201 ✅ (was 500)
+  • POST /warranty-claims → 201 ✅ (was 500)
+  • POST /return-orders → 201 ✅ (was 500)
+  • POST /leads → 201 ✅ (no regression)
+  • Idempotency replay → same ID ✅
+- Regression: Audit v4 = 48 PASS, 5 FALSE POSITIVE (duplicates), 0 REAL FAIL
+- Lint: 0 errors
+
+Stage Summary:
+- BUG-03: ✅ RUNTIME VERIFIED — all previously-broken POST routes now return 201 (not 500)
+- 0 files with response.clone().text() remaining
+- Idempotency works correctly (same key → same ID)
+- No regression in existing functionality
+- Ready for Golden Slice (مرحله ۳)
