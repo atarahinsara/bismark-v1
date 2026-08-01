@@ -2991,3 +2991,70 @@ Stage Summary:
 - Regression: 0 REAL FAIL
 - Verdict: CONDITIONAL GO for continued development
 - خروجی: docs/bismark-post-p0-fix-deep-audit.md (480 lines, 12 sections)
+
+---
+Task ID: MASTER-SPEC-V1
+Agent: General-Purpose Sub Agent (Master Spec Author)
+Task: Create BISMARK MASTER SPEC v1.0 — single source of truth for all decisions.
+
+Work Log:
+- بررسی تمام Hardening items موجود:
+  • 54 LAW (LAW-04 تا LAW-57) — همه EXISTS ✅
+  • 36 مدل با version field (Optimistic Lock) ✅
+  • Outbox + Dispatcher + Retry + DLQ ✅
+  • Inbox + exactly-once ✅
+  • Snapshot Policy ✅
+  • UnitOfWork ✅
+  • BusinessCodeGenerator (Atomic Sequence) ✅
+  • TenantContext (Runtime Enforcement) ✅
+  • Refresh Token Rotation ✅
+  • Session Revocation ✅
+  • MFA (TOTP) ✅
+- شناسایی 6 Hardening ناقص:
+  • Saga Timeout ❌ MISSING
+  • PendingOrderedEvent ❌ MISSING
+  • Projection Shadow Rebuild ❌ MISSING
+  • Outbox Reaper ❌ MISSING
+  • Password Reset Token ❌ MISSING
+  • Refresh Token Reuse Detection ❌ MISSING
+- بررسی ServiceRequest → ServiceOrder → TechnicianJob hierarchy:
+  • ServiceRequest ✅ EXISTS (با serviceOrderId link)
+  • ServiceOrder ✅ EXISTS
+  • TechnicianAssignment ✅ EXISTS (به serviceOrderId، نه Job)
+  • TechnicianJob ❌ MISSING (Queen Correction 1)
+  • ServiceReport ❌ MISSING
+- بررسی Van Stock:
+  • VanStock ❌ MISSING
+  • VanStockLedger ❌ MISSING
+  • VanTransfer ❌ MISSING
+  • VanRestockRequest ❌ MISSING
+  • ServiceOrderPart ✅ EXISTS (consumption فقط، بدون stock management)
+- نگارش Master Spec v1.0 با 15 بخش:
+  1. تصمیمات معماری (🔒 FROZEN)
+  2. تصمیمات دیتابیس (🔒 FROZEN + 🟡 CONDITIONAL)
+  3. تصمیمات امنیت (🔒 FROZEN + 🟡 CONDITIONAL)
+  4. الگوی Event-Driven (🔒 FROZEN + ❌ MISSING items)
+  5. Hardening BISMARK (58 موجود + 6 ناقص)
+  6. اصلاحات Queen (5 مورد)
+  7. الگوی Engineering (چرخه اجباری)
+  8. تکنولوژی‌های REJECTED (14 مورد)
+  9. تکنولوژی‌های CONDITIONAL (12 مورد)
+  10. تکنولوژی‌های DEFERRED (11 مورد)
+  11. Golden Slice Definition (29 stage)
+  12. Roadmap نهایی (10 مرحله)
+  13. نمره‌دهی رسمی (8.6/10 معماری، 3/10 Production)
+  14. Definition of Done
+  15. سند مرجع
+
+Stage Summary:
+- BISMARK MASTER SPEC v1.0 در `docs/bismark-master-spec.md` (680 lines)
+- 4 وضعیت تصمیم: 🔒 FROZEN / 🟡 CONDITIONAL / ⏳ DEFERRED / ❌ REJECTED
+- 5 اصلاح Queen تعریف شد:
+  1. ServiceRequest ≠ TechnicianJob (🔒 FROZEN — باید اضافه شود)
+  2. Van Stock با Ledger (🔒 FROZEN — باید اضافه شود)
+  3. حفظ Hardening قبلی (🔒 FROZEN — 58 موجود + 6 ناقص)
+  4. Golden Slice (🔒 FROZEN — 29 stage، 3 MISSING)
+  5. AI ممنوع (⏳ DEFERRED)
+- نمره رسمی: معماری 8.6/10، Production 3/10
+- Roadmap: BUG-03 → Golden Slice → PostgreSQL → Mobile → Dispatch → BI → CRM → Automation → AI
+- هیچ کدی تغییر نکرد
