@@ -2441,3 +2441,548 @@ model AuditLog {
   @@index([tenantId, action, createdAt])
   @@map("audit_logs")
 }
+
+// ============================================================
+// GAP-01: Installation System
+// ============================================================
+
+model Installation {
+  id              String   @id @default(cuid())
+  tenantId        String
+  installationNumber String // business code: INS-1403-00001
+  salesOrderId    String?
+  shipmentId      String?
+  productInstanceId String
+  customerId      String
+  installerId     String? // FK to Party (technician/installer)
+  scheduledDate   DateTime?
+  completedDate   DateTime?
+  status          String   @default("pending") // pending|scheduled|in_progress|completed|cancelled|failed
+  installationType String  @default("free") // free|paid|warranty
+  address         Json?
+  notes           String?
+  photos          Json? // [{ url, type: before|after, uploadedAt }]
+  customerSignature String?
+  satisfactionRating Int?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, installationNumber])
+  @@index([tenantId, status, scheduledDate])
+  @@index([tenantId, customerId])
+  @@index([tenantId, productInstanceId])
+  @@map("installations")
+}
+
+// ============================================================
+// GAP-02: Appointment/Scheduling
+// ============================================================
+
+model Appointment {
+  id                String   @id @default(cuid())
+  tenantId          String
+  appointmentNumber String // business code: APT-1403-00001
+  serviceRequestId  String?
+  serviceOrderId    String?
+  technicianId      String // FK to Party
+  customerId        String
+  scheduledStartTime DateTime
+  scheduledEndTime  DateTime
+  actualStartTime   DateTime?
+  actualEndTime     DateTime?
+  status            String   @default("requested") // requested|confirmed|en_route|arrived|completed|cancelled|no_show
+  window            String   @default("morning") // morning|afternoon|evening
+  address           Json?
+  notes             String?
+  reminderSentAt    DateTime?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, appointmentNumber])
+  @@index([tenantId, technicianId, scheduledStartTime])
+  @@index([tenantId, customerId, scheduledStartTime])
+  @@index([tenantId, status, scheduledStartTime])
+  @@map("appointments")
+}
+
+// ============================================================
+// GAP-03: Complaint/Ticket
+// ============================================================
+
+model Complaint {
+  id              String   @id @default(cuid())
+  tenantId        String
+  complaintNumber String // business code: CMP-1403-00001
+  customerId      String
+  complaintType   String // service|product|billing|delivery|warranty|other
+  severity        String   @default("medium") // low|medium|high|critical
+  status          String   @default("open") // open|investigating|resolved|closed|escalated
+  relatedEntityType String? // service_order|invoice|warranty_card|product
+  relatedEntityId String?
+  subject         String
+  description     String
+  resolution      String?
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  escalatedTo     String?
+  escalatedAt     DateTime?
+  slaDeadline     DateTime?
+  satisfactionWithResolution Int?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, complaintNumber])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, customerId, createdAt])
+  @@index([tenantId, severity, status])
+  @@map("complaints")
+}
+
+// ============================================================
+// GAP-04: Survey/Satisfaction
+// ============================================================
+
+model SurveyTemplate {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  type        String // post_service|post_installation|post_purchase|periodic
+  questions   Json // [{ question, type: rating|text|choice, options?, required }]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, type, isActive])
+  @@map("survey_templates")
+}
+
+model Survey {
+  id              String   @id @default(cuid())
+  tenantId        String
+  surveyTemplateId String?
+  surveyType      String // post_service|post_installation|post_purchase|periodic
+  relatedEntityType String? // service_order|installation|sales_order
+  relatedEntityId String?
+  customerId      String
+  answers         Json // [{ questionId, question, answer }]
+  overallRating   Int? // 1-5
+  npsScore        Int? // -100 to 100
+  submittedAt     DateTime @default(now())
+  status          String   @default("submitted") // pending|submitted|expired
+
+  @@index([tenantId, surveyType, submittedAt])
+  @@index([tenantId, customerId])
+  @@index([tenantId, relatedEntityType, relatedEntityId])
+  @@map("surveys")
+}
+
+// ============================================================
+// GAP-05: File/Media Management
+// ============================================================
+
+model FileAttachment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  fileName        String
+  filePath        String
+  fileSize        Int
+  mimeType        String
+  storageType     String   @default("local") // local|s3|minio
+  entityType      String // service_order|invoice|warranty_card|product|complaint|installation
+  entityId        String
+  uploadedBy      String?
+  uploadedAt      DateTime @default(now())
+  isPublic        Boolean  @default(false)
+  metadata        Json? // { width, height, duration, checksum }
+  virusScanStatus String   @default("pending") // pending|clean|infected
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, uploadedBy, uploadedAt])
+  @@map("file_attachments")
+}
+
+// ============================================================
+// GAP-06: Technician Skills/Availability/Performance
+// ============================================================
+
+model TechnicianSkill {
+  id                String   @id @default(cuid())
+  tenantId          String
+  technicianId      String // FK to Party
+  productCategoryId String?
+  skillLevel        String   @default("junior") // junior|intermediate|senior|expert
+  certifiedAt       DateTime?
+  certifiedBy       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, technicianId, productCategoryId])
+  @@index([tenantId, technicianId])
+  @@map("technician_skills")
+}
+
+model TechnicianAvailability {
+  id            String   @id @default(cuid())
+  tenantId      String
+  technicianId  String
+  date          DateTime
+  startTime     String // "08:00"
+  endTime       String // "17:00"
+  status        String   @default("available") // available|busy|off|vacation
+  city          String?
+  coverageArea  Json? // { cities: [], polygon: {} }
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, technicianId, date])
+  @@index([tenantId, date, status])
+  @@map("technician_availability")
+}
+
+model TechnicianPerformance {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  technicianId          String
+  period                String // "1403-05" (monthly)
+  completedJobs         Int      @default(0)
+  avgCompletionTimeHours Float   @default(0)
+  firstTimeFixRate      Float    @default(0) // 0..1
+  customerRating        Float    @default(0) // 0..5
+  slaComplianceRate     Float    @default(0) // 0..1
+  totalRevenue          Float    @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([tenantId, technicianId, period])
+  @@index([tenantId, period])
+  @@map("technician_performance")
+}
+
+// ============================================================
+// GAP-07: SLA Management
+// ============================================================
+
+model SLAPolicy {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  name                  String
+  priority              String   @default("medium") // low|medium|high|critical
+  responseTimeMinutes   Int
+  resolutionTimeHours   Int
+  entityType            String   @default("service_request") // service_request|complaint
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  trackers              SLATracker[]
+
+  @@index([tenantId, entityType, isActive])
+  @@map("sla_policies")
+}
+
+model SLATracker {
+  id                String   @id @default(cuid())
+  tenantId          String
+  entityType        String // service_request|complaint
+  entityId          String
+  slaPolicyId       String
+  slaPolicy         SLAPolicy @relation(fields: [slaPolicyId], references: [id])
+  responseDeadline  DateTime
+  resolutionDeadline DateTime
+  respondedAt       DateTime?
+  resolvedAt        DateTime?
+  isBreached        Boolean  @default(false)
+  breachReason      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, entityType, entityId])
+  @@index([tenantId, isBreached, responseDeadline])
+  @@map("sla_trackers")
+}
+
+// ============================================================
+// GAP-08: Procurement/Supplier
+// ============================================================
+
+model PurchaseOrder {
+  id                String   @id @default(cuid())
+  tenantId          String
+  poNumber          String // business code: PO-1403-00001
+  supplierPartyId   String
+  status            String   @default("draft") // draft|submitted|approved|received|cancelled
+  orderDate         DateTime @default(now())
+  expectedDeliveryDate DateTime?
+  receivedDate      DateTime?
+  totalAmount       Float    @default(0)
+  currencyCode      String   @default("IRR")
+  notes             String?
+  metadata          Json?
+  version           Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  lines             PurchaseOrderLine[]
+  goodsReceipts     GoodsReceipt[]
+
+  @@unique([tenantId, poNumber])
+  @@index([tenantId, status, orderDate])
+  @@index([tenantId, supplierPartyId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  productId       String
+  quantity        Float
+  receivedQuantity Float    @default(0)
+  unitPrice       Float
+  totalPrice      Float
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_lines")
+}
+
+model GoodsReceipt {
+  id              String   @id @default(cuid())
+  tenantId        String
+  grNumber        String // business code: GR-1403-00001
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  warehouseId     String
+  receivedDate    DateTime @default(now())
+  receivedBy      String?
+  status          String   @default("pending") // pending|partial|completed
+  qualityCheckStatus String @default("pending") // pending|approved|rejected
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  lines           GoodsReceiptLine[]
+
+  @@unique([tenantId, grNumber])
+  @@index([tenantId, status, receivedDate])
+  @@index([tenantId, purchaseOrderId])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  goodsReceiptId      String
+  goodsReceipt        GoodsReceipt @relation(fields: [goodsReceiptId], references: [id])
+  purchaseOrderLineId String?
+  productId           String
+  quantityReceived    Float
+  batchNumber         String?
+  expiryDate          DateTime?
+  condition           String   @default("good") // good|damaged|rejected
+  notes               String?
+  createdAt           DateTime @default(now())
+
+  @@index([goodsReceiptId])
+  @@map("goods_receipt_lines")
+}
+
+// ============================================================
+// GAP-09: Commission
+// ============================================================
+
+model CommissionRule {
+  id                String   @id @default(cuid())
+  tenantId          String
+  name              String
+  productCategoryId String?
+  salesRepPartyId   String?
+  commissionType    String   @default("percentage") // percentage|fixed|tiered
+  rate              Float // percentage (0-100) or fixed amount
+  minAmount         Float    @default(0)
+  maxAmount         Float?
+  effectiveFrom     DateTime @default(now())
+  effectiveTo       DateTime?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId, isActive, effectiveFrom])
+  @@map("commission_rules")
+}
+
+model CommissionTransaction {
+  id                String   @id @default(cuid())
+  tenantId          String
+  salesRepPartyId   String
+  salesOrderId      String?
+  commissionRuleId  String?
+  amount            Float
+  status            String   @default("calculated") // calculated|approved|paid|cancelled
+  paidAt            DateTime?
+  paidBy            String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId, salesRepPartyId, status])
+  @@index([tenantId, salesOrderId])
+  @@map("commission_transactions")
+}
+
+// ============================================================
+// GAP-10: Promotion/Coupon
+// ============================================================
+
+model Promotion {
+  id                String   @id @default(cuid())
+  tenantId          String
+  name              String
+  code              String
+  type              String   @default("percentage") // percentage|fixed_amount|free_shipping|buy_x_get_y
+  value             Float
+  minOrderAmount    Float    @default(0)
+  maxDiscountAmount Float?
+  productCategoryIds Json? // ["cat-id-1", "cat-id-2"]
+  startDate         DateTime
+  endDate           DateTime
+  usageLimit        Int?
+  usedCount         Int      @default(0)
+  isActive          Boolean  @default(true)
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  coupons           Coupon[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, startDate, endDate])
+  @@map("promotions")
+}
+
+model Coupon {
+  id            String   @id @default(cuid())
+  tenantId      String
+  promotionId   String
+  promotion     Promotion @relation(fields: [promotionId], references: [id])
+  code          String   @unique
+  customerId    String?
+  usedAt        DateTime?
+  usedBy        String?
+  status        String   @default("active") // active|used|expired
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, promotionId, status])
+  @@map("coupons")
+}
+
+// ============================================================
+// GAP-11: CRM/Loyalty
+// ============================================================
+
+model Lead {
+  id              String   @id @default(cuid())
+  tenantId        String
+  leadNumber      String // business code: LED-1403-00001
+  customerName    String
+  phone           String?
+  email           String?
+  source          String   @default("walk_in") // walk_in|online|referral|campaign|call_center
+  status          String   @default("new") // new|contacted|qualified|converted|lost
+  assignedTo      String?
+  convertedToPartyId String?
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, leadNumber])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, assignedTo])
+  @@map("leads")
+}
+
+model CustomerInteraction {
+  id              String   @id @default(cuid())
+  tenantId        String
+  partyId         String
+  channel         String   @default("phone") // phone|email|sms|in_person|social
+  direction       String   @default("inbound") // inbound|outbound
+  subject         String
+  notes           String
+  interactionAt   DateTime @default(now())
+  handledBy       String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, partyId, interactionAt])
+  @@index([tenantId, handledBy, interactionAt])
+  @@map("customer_interactions")
+}
+
+model LoyaltyAccount {
+  id              String   @id @default(cuid())
+  tenantId        String
+  partyId         String
+  points          Int      @default(0)
+  tier            String   @default("bronze") // bronze|silver|gold|platinum
+  totalSpent      Float    @default(0)
+  joinedAt        DateTime @default(now())
+  lastPurchaseAt  DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  transactions    LoyaltyTransaction[]
+
+  @@unique([tenantId, partyId])
+  @@index([tenantId, tier])
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id                String   @id @default(cuid())
+  tenantId          String
+  loyaltyAccountId  String
+  loyaltyAccount    LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id])
+  type              String // earn|redeem|expire|adjust
+  points            Int // positive=earn, negative=redeem
+  relatedEntityType String?
+  relatedEntityId   String?
+  description       String?
+  createdAt         DateTime @default(now())
+
+  @@index([loyaltyAccountId, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@map("loyalty_transactions")
+}
+
+// ============================================================
+// GAP-14: Multi-Company
+// ============================================================
+
+model Company {
+  id              String   @id @default(cuid())
+  tenantId        String
+  name            String
+  legalName       String?
+  taxId           String?
+  registrationNo  String?
+  address         Json?
+  phone           String?
+  email           String?
+  isActive        Boolean  @default(true)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("companies")
+}

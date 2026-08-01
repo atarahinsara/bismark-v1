@@ -149,6 +149,47 @@ async function main() {
     // System
     { key: 'system.read', module: 'system', action: 'read', description: 'View system status' },
     { key: 'system.manage', module: 'system', action: 'manage', description: 'Manage system settings' },
+    // Installation
+    { key: 'installation.read', module: 'fulfillment', action: 'read', description: 'View installations' },
+    { key: 'installation.manage', module: 'fulfillment', action: 'manage', description: 'Manage installations' },
+    // Appointment
+    { key: 'appointment.read', module: 'service', action: 'read', description: 'View appointments' },
+    { key: 'appointment.manage', module: 'service', action: 'manage', description: 'Manage appointments' },
+    // Complaint
+    { key: 'complaint.read', module: 'service', action: 'read', description: 'View complaints' },
+    { key: 'complaint.manage', module: 'service', action: 'manage', description: 'Manage complaints' },
+    // Survey
+    { key: 'survey.read', module: 'service', action: 'read', description: 'View surveys' },
+    { key: 'survey.manage', module: 'service', action: 'manage', description: 'Manage surveys' },
+    // Files
+    { key: 'file.read', module: 'system', action: 'read', description: 'View files' },
+    { key: 'file.upload', module: 'system', action: 'manage', description: 'Upload files' },
+    // Technician Management
+    { key: 'technician.skills', module: 'service', action: 'manage', description: 'Manage technician skills' },
+    { key: 'technician.availability', module: 'service', action: 'manage', description: 'Manage technician availability' },
+    // SLA
+    { key: 'sla.read', module: 'system', action: 'read', description: 'View SLA policies' },
+    { key: 'sla.manage', module: 'system', action: 'manage', description: 'Manage SLA policies' },
+    // Procurement
+    { key: 'procurement.read', module: 'inventory', action: 'read', description: 'View purchase orders' },
+    { key: 'procurement.create', module: 'inventory', action: 'create', description: 'Create purchase orders' },
+    { key: 'procurement.approve', module: 'inventory', action: 'approve', description: 'Approve purchase orders' },
+    { key: 'procurement.receive', module: 'inventory', action: 'receive', description: 'Receive goods' },
+    // Commission
+    { key: 'commission.read', module: 'financial', action: 'read', description: 'View commissions' },
+    { key: 'commission.manage', module: 'financial', action: 'manage', description: 'Manage commission rules' },
+    // Promotion
+    { key: 'promotion.read', module: 'sales', action: 'read', description: 'View promotions' },
+    { key: 'promotion.manage', module: 'sales', action: 'manage', description: 'Manage promotions' },
+    // CRM
+    { key: 'crm.read', module: 'sales', action: 'read', description: 'View CRM data' },
+    { key: 'crm.manage', module: 'sales', action: 'manage', description: 'Manage CRM' },
+    // Loyalty
+    { key: 'loyalty.read', module: 'sales', action: 'read', description: 'View loyalty accounts' },
+    { key: 'loyalty.manage', module: 'sales', action: 'manage', description: 'Manage loyalty' },
+    // Company
+    { key: 'company.read', module: 'system', action: 'read', description: 'View companies' },
+    { key: 'company.manage', module: 'system', action: 'manage', description: 'Manage companies' },
   ]
 
   for (const p of permissionDefs) {
