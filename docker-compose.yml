@@ -1,0 +1,48 @@
+# BISMARK ERP — Development Docker Compose
+# Only PostgreSQL + Redis for development. App + Worker run on host (hot reload).
+# Usage: docker compose up -d
+
+version: '3.8'
+
+services:
+  # ============================================================
+  # PostgreSQL 16 — Main Database
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: bismark-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bismark
+      POSTGRES_USER: bismark
+      POSTGRES_PASSWORD: bismark
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bismark -d bismark"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # Redis 7 — Cache + Rate Limiting + Session
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: bismark-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
