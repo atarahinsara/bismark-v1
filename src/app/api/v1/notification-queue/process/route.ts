@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, errorResponse } from '@/lib/api-helpers'
@@ -20,6 +21,10 @@ import { notificationService } from '@/lib/modules/notification'
  */
 export async function POST(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'notification.send')
+
     const idempotent = await IdempotencyHelper.check(request)
     if (idempotent.cached && idempotent.response) return idempotent.response
 

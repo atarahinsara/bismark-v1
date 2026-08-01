@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -10,6 +11,10 @@ import { DomainException, ValidationException, NotFoundException } from '@/lib/s
  */
 export async function POST(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'financial.journal_create')
+
     const idempotent = await IdempotencyHelper.check(request)
     if (idempotent.cached && idempotent.response) return idempotent.response
 

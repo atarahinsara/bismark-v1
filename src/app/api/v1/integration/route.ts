@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -11,6 +12,10 @@ import { SagaManager } from '@/lib/saga/saga-manager'
  */
 export async function GET(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'system.read')
+
     const tenantId = await getTenantId()
 
     // Outbox stats
@@ -114,6 +119,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'system.manage')
+
     const { OutboxDispatcher } = await import('@/lib/shared/outbox')
     const stats = await OutboxDispatcher.processBatch()
     return jsonResponse({ data: stats })

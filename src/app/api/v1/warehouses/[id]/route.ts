@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -7,6 +8,10 @@ interface Params { params: { id: string } }
 
 export async function GET(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'inventory.adjust')
+
     const tenantId = await getTenantId()
     const wh = await db.warehouse.findFirst({
       where: { id: params.id, tenantId, deletedAt: null },
@@ -25,6 +30,10 @@ export async function GET(request: NextRequest, { params }: Params) {
 
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'inventory.adjust')
+
     const tenantId = await getTenantId()
     const body = await request.json()
     const existing = await db.warehouse.findFirst({ where: { id: params.id, tenantId, deletedAt: null } })
@@ -50,6 +59,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'inventory.adjust')
+
     const tenantId = await getTenantId()
     const existing = await db.warehouse.findFirst({ where: { id: params.id, tenantId, deletedAt: null } })
     if (!existing) throw new NotFoundException('Warehouse', params.id)

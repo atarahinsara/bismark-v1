@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse, parseQueryParams } from '@/lib/api-helpers'
@@ -16,6 +17,10 @@ import { DomainException } from '@/lib/shared'
  */
 export async function GET(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'inventory.adjust')
+
     const tenantId = await getTenantId()
     const params = parseQueryParams(request)
     const url = new URL(request.url)

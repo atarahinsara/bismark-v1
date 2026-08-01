@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse, parseQueryParams } from '@/lib/api-helpers'
@@ -11,6 +12,10 @@ import type { ProductCategory } from '@/lib/types'
  */
 export async function GET(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'product.create')
+
     const tenantId = await getTenantId()
     const params = parseQueryParams(request)
     const url = new URL(request.url)
@@ -50,6 +55,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'product.create')
+
     const tenantId = await getTenantId()
     const body = await request.json()
 

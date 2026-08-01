@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -11,6 +12,10 @@ interface Params { params: { id: string } }
  */
 export async function GET(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'inventory.transfer')
+
     const tenantId = await getTenantId()
     const transfer = await db.stockTransfer.findFirst({
       where: { id: params.id, tenantId, deletedAt: null },
@@ -30,6 +35,10 @@ export async function GET(request: NextRequest, { params }: Params) {
  */
 export async function POST(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'inventory.transfer')
+
     const tenantId = await getTenantId()
     const body = await request.json()
 

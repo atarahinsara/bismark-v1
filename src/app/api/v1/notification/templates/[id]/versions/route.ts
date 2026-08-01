@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -15,6 +16,10 @@ interface RouteCtx {
  */
 export async function GET(request: NextRequest, { params }: RouteCtx) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'notification.read')
+
     const tenantId = await getTenantId()
     const { id } = await params
 

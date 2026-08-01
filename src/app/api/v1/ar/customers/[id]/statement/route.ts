@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -12,6 +13,10 @@ interface Params { params: { id: string } }
  */
 export async function GET(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'financial.journal_create')
+
     const tenantId = await getTenantId()
     const url = new URL(request.url)
     const fromDate = url.searchParams.get('from_date')

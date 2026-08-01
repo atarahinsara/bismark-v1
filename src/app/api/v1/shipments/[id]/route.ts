@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -10,6 +11,10 @@ interface Params { params: { id: string } }
  */
 export async function GET(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'fulfillment.read')
+
     const tenantId = await getTenantId()
     const shipment = await db.shipment.findFirst({
       where: { id: params.id, tenantId, deletedAt: null },

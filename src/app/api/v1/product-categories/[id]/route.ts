@@ -1,3 +1,4 @@
+import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -12,6 +13,10 @@ interface Params {
  */
 export async function GET(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'product.create')
+
     const tenantId = await getTenantId()
     const category = await db.productCategory.findFirst({
       where: { id: params.id, tenantId, deletedAt: null },
@@ -31,6 +36,10 @@ export async function GET(request: NextRequest, { params }: Params) {
  */
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'product.create')
+
     const tenantId = await getTenantId()
     const body = await request.json()
 
@@ -72,6 +81,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
  */
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
+    const ctx = requireAuth(request)
+    if (!ctx) return unauthorizedResponse()
+    await requirePermission(ctx, 'product.create')
+
     const tenantId = await getTenantId()
     const existing = await db.productCategory.findFirst({
       where: { id: params.id, tenantId, deletedAt: null },
