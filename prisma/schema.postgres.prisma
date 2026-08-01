@@ -132,6 +132,12 @@ model User {
   lockedUntil DateTime?
   failedLoginAttempts Int  @default(0)
   lastLoginAt  DateTime?
+  // T-2-17: MFA fields
+  mfaEnabled   Boolean     @default(false)
+  mfaSecret    String?     // TOTP secret (base32)
+  mfaBackupCodes Json?     // Array of SHA-256 hashed backup codes
+  mfaSetupAt   DateTime?
+  lastMfaAt    DateTime?
   metadata     Json
   createdBy    String?
   updatedBy    String?

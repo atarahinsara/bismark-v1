@@ -10,77 +10,205 @@ env:
   NODE_VERSION: '20'
 
 jobs:
+  # ============================================================
+  # Stage 1: Code Quality
+  # ============================================================
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun run lint
-      - run: bunx tsc --noEmit
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: ESLint
+        run: bun run lint
+      - name: TypeScript check
+        run: bunx tsc --noEmit
 
+  # ============================================================
+  # Stage 2: Unit Tests
+  # ============================================================
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    needs: [lint]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bunx vitest run --coverage
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run db:generate
+      - name: Run unit tests
+        run: bunx vitest run --coverage
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
 
+  # ============================================================
+  # Stage 3: Integration Tests (with SQLite test DB)
+  # ============================================================
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: [lint, unit-tests]
+    needs: [unit-tests]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun run db:push
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Setup test database
+        run: |
+          bun run db:push
         env:
           DATABASE_URL: "file:./test.db"
-      - run: bun run src/lib/seed.ts
+      - name: Seed test database
+        run: bun run src/lib/seed.ts
         env:
           DATABASE_URL: "file:./test.db"
-      - run: bunx vitest run src/tests/integration
+      - name: Start dev server (background)
+        run: |
+          bun run dev &
+          sleep 10
+        env:
+          DATABASE_URL: "file:./test.db"
+      - name: Run regression tests
+        run: |
+          chmod +x test_audit_v4.sh
+          ./test_audit_v4.sh
+      - name: Stop dev server
+        if: always()
+        run: pkill -f "next dev" || true
 
-  build:
-    name: Build
+  # ============================================================
+  # Stage 4: Security Scan
+  # ============================================================
+  security-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
     needs: [integration-tests]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun run db:generate
-      - run: bun run build
-
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    needs: [build]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun audit || true
-      - name: Check for secrets
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Audit dependencies (fail on high)
+        run: bun audit --level=high
+        continue-on-error: false
+      - name: Check for hardcoded secrets
         run: |
-          ! grep -r "sk_live\|sk_test\|password.*=.*['\"]" src/ --include="*.ts" --include="*.tsx" || (echo "Potential secrets found!" && exit 1)
+          ! grep -rnE "(sk_live|sk_test|AKIA|password\s*=\s*['\"][^'\"]+['\"])" src/ --include="*.ts" --include="*.tsx" || (echo "Potential secrets found!" && exit 1)
+      - name: Check for PII in logs
+        run: |
+          ! grep -rn "console.log.*password\|console.log.*token\|console.log.*secret" src/ --include="*.ts" || (echo "PII logging detected!" && exit 1)
 
-  docker-build:
-    name: Docker Build
+  # ============================================================
+  # Stage 5: Build
+  # ============================================================
+  build:
+    name: Build
     runs-on: ubuntu-latest
     needs: [security-scan]
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t bismark-erp:latest .
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run db:generate
+      - name: Build production bundle
+        run: bun run build
+        env:
+          DATABASE_URL: "file:./prod.db"
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: .next/standalone/
 
-  deploy:
-    name: Deploy
+  # ============================================================
+  # Stage 6: Docker Build
+  # ============================================================
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t bismark-erp:${{ github.sha }} -t bismark-erp:latest .
+      - name: Scan image for vulnerabilities
+        run: |
+          # Use Trivy if available, otherwise skip
+          if command -v trivy &> /dev/null; then
+            trivy image --exit-code 1 --severity HIGH,CRITICAL bismark-erp:latest
+          else
+            echo "Trivy not available — skipping image scan"
+          fi
+
+  # ============================================================
+  # Stage 7: Deploy to Staging
+  # ============================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to staging
+        run: |
+          echo "Deploying BISMARK ERP to staging - Commit: ${{ github.sha }}"
+          # In production: docker-compose -f docker-compose.production.yml up -d
+          # Or: kubectl apply -f k8s/staging/
+      - name: Health check
+        run: |
+          # Wait for app to start, then check health
+          sleep 30
+          # curl -f https://staging.bismark.example.com/api/v1/system/health || exit 1
+          echo "Health check passed (stub)"
+
+  # ============================================================
+  # Stage 8: Deploy to Production
+  # ============================================================
+  deploy-production:
+    name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [docker-build]
     if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://bismark.example.com
     steps:
-      - run: echo "Deploying BISMARK ERP v1.0 - Commit: ${{ github.sha }}"
+      - uses: actions/checkout@v4
+      - name: Deploy to production
+        run: |
+          echo "Deploying BISMARK ERP to production - Commit: ${{ github.sha }}"
+          # In production:
+          # 1. Pull latest image
+          # 2. Run database migration
+          # 3. Blue-green deploy
+          # 4. Health check
+          # 5. Switch traffic
+      - name: Post-deploy health check
+        run: |
+          echo "Running post-deploy health checks..."
+          # curl -f https://bismark.example.com/api/v1/system/health || exit 1
+          # curl -f https://bismark.example.com/api/metrics || exit 1
+          echo "Production health check passed (stub)"
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed — rolling back..."
+          # docker tag bismark-erp:previous bismark-erp:latest
+          # docker-compose up -d
+          echo "Rollback complete (stub)"

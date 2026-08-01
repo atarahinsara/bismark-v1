@@ -65,12 +65,16 @@ export interface AuthContext {
 /**
  * Login a user with username and password.
  * Creates a session in the database and returns JWT tokens.
+ *
+ * T-2-17: If user has MFA enabled, mfaToken must be provided.
+ * If MFA enabled but no token, throws AuthError MFA_REQUIRED.
  */
 export async function login(
   username: string,
   password: string,
   ipAddress: string,
   userAgent?: string,
+  mfaToken?: string,
 ): Promise<AuthResult> {
   // Find user by username (cross-tenant lookup for sandbox — in production, tenant is from subdomain)
   const user = await db.user.findFirst({
@@ -151,6 +155,48 @@ export async function login(
       lastLoginAt: new Date(),
     },
   })
+
+  // T-2-17: MFA verification
+  if (user.mfaEnabled) {
+    if (!mfaToken) {
+      throw new AuthError(
+        'MFA_REQUIRED',
+        'Multi-factor authentication is enabled for this account. Provide mfaToken in request body.',
+        403,
+      )
+    }
+
+    // Verify TOTP token
+    const { verifyMfaToken } = await import('./mfa')
+    const isMfaValid = user.mfaSecret ? verifyMfaToken(user.mfaSecret, mfaToken) : false
+
+    if (!isMfaValid) {
+      // Try backup codes
+      const { verifyBackupCode } = await import('./mfa')
+      const backupCodes = (user.mfaBackupCodes as string[] | null) || []
+      const backupIdx = await verifyBackupCode(mfaToken, backupCodes)
+
+      if (backupIdx === -1) {
+        throw new AuthError(
+          'MFA_TOKEN_INVALID',
+          'Invalid MFA token or backup code.',
+          401,
+        )
+      }
+
+      // Remove used backup code
+      const newBackupCodes = backupCodes.filter((_, i) => i !== backupIdx)
+      await db.user.update({
+        where: { id: user.id },
+        data: { mfaBackupCodes: newBackupCodes, lastMfaAt: new Date() },
+      })
+    } else {
+      await db.user.update({
+        where: { id: user.id },
+        data: { lastMfaAt: new Date() },
+      })
+    }
+  }
 
   // Extract role keys
   const roleKeys = user.userRoles.map((ur) => ur.role.key)

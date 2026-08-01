@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
 
     const userAgent = request.headers.get('user-agent') || undefined
 
-    const result = await login(body.username, body.password, ipAddress, userAgent)
+    // T-2-17: Pass mfaToken if provided (for MFA-enabled users)
+    const result = await login(body.username, body.password, ipAddress, userAgent, body.mfaToken)
 
     const responseBody = JSON.stringify({ data: result })
     await IdempotencyHelper.store(request, responseBody, 200, rawBody)
@@ -72,7 +73,6 @@ export async function POST(request: NextRequest) {
     if (e instanceof DomainException) {
       return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode })
     }
-    console.error('[auth/login] error:', e)
     return errorResponse({
       code: 'INTERNAL_ERROR',
       message: 'Authentication failed',

@@ -132,6 +132,12 @@ model User {
   lockedUntil DateTime?
   failedLoginAttempts Int  @default(0)
   lastLoginAt  DateTime?
+  // T-2-17: MFA fields
+  mfaEnabled   Boolean     @default(false)
+  mfaSecret    String?     // TOTP secret (base32)
+  mfaBackupCodes Json?     // Array of SHA-256 hashed backup codes
+  mfaSetupAt   DateTime?
+  lastMfaAt    DateTime?
   metadata     Json
   createdBy    String?
   updatedBy    String?
@@ -2985,4 +2991,179 @@ model Company {
   @@unique([tenantId, name])
   @@index([tenantId, isActive])
   @@map("companies")
+}
+
+// ============================================================
+// PHASE 3: Bank Reconciliation (T-3-05)
+// ============================================================
+
+model BankAccount {
+  id              String   @id @default(cuid())
+  tenantId        String
+  accountName     String
+  accountNumber   String   // masked (last 4 digits)
+  bankName        String
+  branchCode      String?
+  iban            String?  // International Bank Account Number
+  currencyCode    String   @default("IRR")
+  chartOfAccountId String? // linked GL account
+  openingBalance  Float    @default(0)
+  currentBalance  Float    @default(0)
+  lastReconciledAt DateTime?
+  isActive        Boolean  @default(true)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  transactions    BankTransaction[]
+  reconciliations BankReconciliation[]
+
+  @@unique([tenantId, accountNumber])
+  @@index([tenantId, isActive])
+  @@map("bank_accounts")
+}
+
+model BankTransaction {
+  id              String   @id @default(cuid())
+  tenantId        String
+  bankAccountId   String
+  bankAccount     BankAccount @relation(fields: [bankAccountId], references: [id])
+  transactionDate DateTime
+  amount          Float     // positive = credit (deposit), negative = debit (withdrawal)
+  balanceAfter    Float?
+  description     String
+  referenceNumber String?   // bank reference
+  checkNumber     String?
+  counterpartyName String?
+  counterpartyAccount String?
+  status          String    @default("imported") // imported|matched|unmatched|ignored
+  matchedPaymentId String?
+  matchedInvoiceId String?
+  matchedJeLineId  String?
+  reconciliationId String?
+  reconciliation   BankReconciliation? @relation("BankTransactionReconciliation", fields: [reconciliationId], references: [id])
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, bankAccountId, transactionDate])
+  @@index([tenantId, status])
+  @@map("bank_transactions")
+}
+
+model BankReconciliation {
+  id              String   @id @default(cuid())
+  tenantId        String
+  bankAccountId   String
+  bankAccount     BankAccount @relation(fields: [bankAccountId], references: [id])
+  reconciliationDate DateTime @default(now())
+  periodStart     DateTime
+  periodEnd       DateTime
+  openingBalance  Float
+  closingBalance  Float
+  bankStatementBalance Float
+  adjustedBalance Float
+  difference      Float    @default(0)
+  status          String   @default("in_progress") // in_progress|completed|cancelled
+  completedAt     DateTime?
+  completedBy     String?
+  matchedCount    Int      @default(0)
+  unmatchedCount  Int      @default(0)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  transactions    BankTransaction[] @relation("BankTransactionReconciliation")
+
+  @@index([tenantId, bankAccountId, status])
+  @@map("bank_reconciliations")
+}
+
+// ============================================================
+// PHASE 4: Technician Mobile + Offline Sync (T-4-01 to T-4-04)
+// ============================================================
+
+model Device {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String   // technician user
+  deviceName      String?
+  deviceType      String   @default("android") // android|ios|pwa
+  deviceModel     String?
+  osVersion       String?
+  appVersion      String?
+  pushToken       String?  // FCM/APNs token
+  deviceFingerprint String? // unique device identifier
+  lastSeenAt      DateTime @default(now())
+  isActive        Boolean  @default(true)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  syncQueue       OfflineSyncQueue[]
+
+  @@unique([tenantId, userId, deviceFingerprint])
+  @@index([tenantId, userId, isActive])
+  @@map("devices")
+}
+
+model OfflineSyncQueue {
+  id              String   @id @default(cuid())
+  tenantId        String
+  deviceId        String
+  device          Device   @relation(fields: [deviceId], references: [id])
+  userId          String   // technician who created the operation
+  operationId     String   // client-generated UUID for idempotency
+  entityType      String   // job|diagnosis|part|photo|signature|checkin|checkout|complete
+  entityId        String   // job ID or related entity ID
+  operationType   String   // create|update|delete
+  payload         Json     // operation data
+  clientCreatedAt DateTime // timestamp from client when operation was created
+  status          String   @default("pending") // pending|syncing|success|conflict|failed
+  attempts        Int      @default(0)
+  lastAttemptAt   DateTime?
+  errorMessage    String?
+  conflictData    Json?    // server-side data when conflict detected
+  syncedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, operationId]) // idempotency: same operationId = same operation
+  @@index([tenantId, deviceId, status])
+  @@index([tenantId, userId, status])
+  @@map("offline_sync_queue")
+}
+
+model MobileJobSnapshot {
+  id              String   @id @default(cuid())
+  tenantId        String
+  deviceId        String
+  serviceOrderId  String
+  snapshotData    Json     // full job data for offline access
+  snapshotVersion Int      @default(1) // for optimistic locking
+  syncedAt        DateTime @default(now())
+  expiresAt       DateTime // snapshot expires after X days
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, deviceId, serviceOrderId])
+  @@index([tenantId, deviceId])
+  @@map("mobile_job_snapshots")
+}
+
+model TechnicianLocation {
+  id              String   @id @default(cuid())
+  tenantId        String
+  technicianId    String   // Party ID
+  serviceOrderId  String?
+  latitude        Float
+  longitude       Float
+  accuracy        Float?   // meters
+  speed           Float?   // m/s
+  heading         Float?   // degrees
+  recordedAt      DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, technicianId, recordedAt])
+  @@index([tenantId, serviceOrderId, recordedAt])
+  @@map("technician_locations")
 }

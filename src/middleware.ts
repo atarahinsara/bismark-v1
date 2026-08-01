@@ -121,6 +121,9 @@ export async function middleware(request: NextRequest) {
     return pathname === route || pathname.startsWith(route + '/')
   })
 
+  // T-2-20: File download via signed URL is public (token in query param, verified in route)
+  const isFileDownload = pathname.match(/^\/api\/v1\/files\/[^/]+\/download$/)
+
   // Strip client-sent x-auth-* headers (prevent spoofing) — always
   const requestHeaders = new Headers(request.headers)
   requestHeaders.delete('x-auth-user-id')
@@ -130,7 +133,7 @@ export async function middleware(request: NextRequest) {
   requestHeaders.delete('x-auth-username')
   requestHeaders.delete('x-auth-roles')
 
-  if (isPublic) {
+  if (isPublic || isFileDownload) {
     const response = NextResponse.next({ request: { headers: requestHeaders } })
     return applySecurityHeaders(response)
   }
