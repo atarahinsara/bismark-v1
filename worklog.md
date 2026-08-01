@@ -2928,3 +2928,66 @@ Stage Summary:
 - Honest readiness: 46/100 (نه 75% که ادعا شده بود)
 - هیچ کدی تغییر نکرد
 - توصیه: فیکس BUG-01 و BUG-02 فوراً، سپس PostgreSQL migration
+
+---
+Task ID: P0-FIX-AND-VERIFY
+Agent: General-Purpose Sub Agent (P0 Bug Fixer + Verifier)
+Task: Fix BUG-01 (Returns Reversal) and BUG-02 (Dispatch Engine), runtime verify, deep audit.
+
+Work Log:
+- BUG-01 Root Cause Analysis (3 issues found):
+  1. `include: { salesOrder, invoice }` — ReturnOrder has no such relations (loose FK)
+  2. `referenceType/referenceId` — JournalEntry uses `sourceType/sourceId`
+  3. BusinessCodeGenerator inside UnitOfWork → nested transaction deadlock (5000ms)
+- BUG-01 Fix:
+  • Removed invalid includes (only keep `lines`)
+  • Fixed field names: `referenceType` → `sourceType`, `referenceId` → `sourceId`
+  • Pre-generate business codes BEFORE UnitOfWork.execute()
+  • Added idempotency check BEFORE status validation (closed → return success)
+- BUG-01 Runtime Verification (ALL PASS):
+  • Invalid ID → 404 (not 500) ✅
+  • Valid return + reverse → 200 + status=closed + refundAmount=150000 ✅
+  • Journal Entry created (JE-1405-00005) ✅
+  • JE balanced (debit=150000, credit=150000) ✅
+  • JE lines: Revenue debit + AR credit ✅
+  • Idempotent reverse (2nd call → "already reversed") ✅
+  • No duplicate JE ✅
+  • InventoryTransaction created (return_in) ✅
+  • Outbox event emitted ✅
+- BUG-02 Root Cause Analysis (3 issues found):
+  1. `include: { productInstance }` — ServiceRequest has no such relation
+  2. `include: { assignments }` — ServiceRequest has no assignments relation
+  3. `serviceOrderId: serviceRequestId` — wrong entity ID
+- BUG-02 Fix:
+  • Separate ProductInstance query (loose FK lookup)
+  • Separate assignment check (via serviceOrderId + metadata.serviceRequestId)
+  • Use sr.serviceOrderId or null; store serviceRequestId in metadata
+  • Added metadata.serviceRequestId check for duplicate detection
+- BUG-02 Runtime Verification (ALL PASS):
+  • Find candidates → 200 + 1 candidate (score=0.61, senior) ✅
+  • Auto-assign → 200 + assignmentId ✅
+  • Assignment persisted in DB ✅
+  • Duplicate auto-assign → 409 CONFLICT ✅
+  • Invalid SR ID → 404 ✅
+  • Outbox event emitted ✅
+- Regression: 53 tests, 48 REAL PASS, 4 FALSE POSITIVE (duplicates), 1 TEST BUG, 0 REAL FAIL
+- Lint: 0 errors
+- Phase 2 Service Usage Audit (HONEST):
+  • Logger: 22 files import, 34 still use console.log → PARTIAL
+  • Metrics: 1 file imports (itself), recordHttpRequest NEVER called → NOT WIRED
+  • PII Encryption: 0 imports → ORPHANED
+  • Commission Service: 0 imports → ORPHANED
+- BUG-03 (pre-existing): 60 routes use response.clone().text() — NOT FIXED (per instructions)
+- Updated Readiness: 46/100 → 52/100 (+6 from P0 fixes)
+
+Stage Summary:
+- BUG-01: ✅ RUNTIME VERIFIED (Returns Reversal fully functional with financial integrity)
+- BUG-02: ✅ RUNTIME VERIFIED (Dispatch Engine fully functional with conflict detection)
+- BUG-03: Documented, NOT FIXED (pre-existing, 60 routes affected)
+- Logger: 🟡 PARTIAL (22/56 files)
+- Metrics: 🟡 NOT WIRED (counters empty)
+- PII Encryption: 🔴 ORPHANED (0 imports)
+- Commission Service: 🔴 ORPHANED (0 imports)
+- Regression: 0 REAL FAIL
+- Verdict: CONDITIONAL GO for continued development
+- خروجی: docs/bismark-post-p0-fix-deep-audit.md (480 lines, 12 sections)

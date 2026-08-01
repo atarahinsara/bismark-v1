@@ -35,21 +35,46 @@ export async function POST(request: NextRequest) {
       ])
     }
 
-    // Verify service request exists and doesn't already have an active assignment
+    // Verify service request exists
+    // BUG-02 fix: ServiceRequest has no `assignments` relation (loose FK pattern).
+    // TechnicianAssignment links to ServiceOrder (via serviceOrderId), not directly
+    // to ServiceRequest. We check for existing assignments separately.
     const sr = await db.serviceRequest.findFirst({
       where: { id: body.serviceRequestId, tenantId, deletedAt: null },
-      include: {
-        assignments: {
-          where: { status: 'active' },
-        },
-      },
     })
 
     if (!sr) {
       throw new NotFoundException('ServiceRequest', body.serviceRequestId)
     }
 
-    if (sr.assignments.length > 0) {
+    // Check if this SR already has an active assignment
+    // BUG-02 fix: TechnicianAssignment has no serviceRequestId field.
+    // We check two ways:
+    //   1. If SR has a linked ServiceOrder, check assignments via serviceOrderId
+    //   2. Also check assignments with metadata.serviceRequestId matching this SR
+    let existingAssignmentCount = 0
+    if (sr.serviceOrderId) {
+      existingAssignmentCount += await db.technicianAssignment.count({
+        where: {
+          tenantId,
+          serviceOrderId: sr.serviceOrderId,
+          status: 'active',
+        },
+      })
+    }
+    // Also check via metadata (for assignments made before ServiceOrder was created)
+    const allActiveAssignments = await db.technicianAssignment.findMany({
+      where: { tenantId, status: 'active' },
+      select: { id: true, metadata: true },
+    })
+    for (const a of allActiveAssignments) {
+      const meta = a.metadata as Record<string, unknown> | null
+      if (meta?.serviceRequestId === body.serviceRequestId) {
+        existingAssignmentCount++
+      }
+    }
+
+    if (existingAssignmentCount > 0) {
       throw new ConflictException('Service request already has an active assignment')
     }
 

@@ -49,28 +49,33 @@ export async function findCandidateTechnicians(
   const { serviceRequestId, tenantId } = req
 
   // Get service request details
+  // NOTE: ServiceRequest uses loose FK pattern (LAW-04) — productInstanceId is a
+  // string field, not a Prisma relation. We fetch ProductInstance separately.
+  // BUG-02 fix: removed invalid `include: { productInstance }` that caused
+  // PrismaClientValidationError.
   const serviceRequest = await db.serviceRequest.findFirst({
     where: { id: serviceRequestId, tenantId, deletedAt: null },
-    include: {
-      productInstance: {
-        select: { productId: true, product: { select: { categoryId: true } } },
-      },
-    },
   })
 
   if (!serviceRequest) {
     throw new Error('Service request not found')
   }
 
+  // Step 0: Resolve product category via separate query (loose FK lookup)
+  let productCategoryId: string | undefined
+  if (serviceRequest.productInstanceId) {
+    const productInstance = await db.productInstance.findFirst({
+      where: { id: serviceRequest.productInstanceId, tenantId },
+      select: { product: { select: { categoryId: true } } },
+    })
+    productCategoryId = productInstance?.product?.categoryId
+  }
+
   // Step 1: Find all technicians with skills matching the product category
-  const productCategoryId = serviceRequest.productInstance?.product?.categoryId
   const skills = await db.technicianSkill.findMany({
     where: {
       tenantId,
       ...(productCategoryId ? { productCategoryId } : {}),
-    },
-    include: {
-      // We need to get the party (technician) info
     },
   })
 
@@ -223,12 +228,21 @@ export async function autoAssignTechnician(
 
   const best = candidates[0]
 
+  // Get the ServiceRequest's linked ServiceOrder (if any)
+  // BUG-02 fix: TechnicianAssignment links to ServiceOrder, not ServiceRequest.
+  // If SR has no linked ServiceOrder, we store serviceRequestId in metadata
+  // and leave serviceOrderId null (will be set when ServiceOrder is created).
+  const sr = await db.serviceRequest.findFirst({
+    where: { id: serviceRequestId, tenantId },
+    select: { id: true, serviceOrderId: true, requestNumber: true },
+  })
+
   // Create assignment
   const assignment = await db.technicianAssignment.create({
     data: {
       tenantId,
       technicianPartyId: best.technicianId,
-      serviceOrderId: serviceRequestId,
+      serviceOrderId: sr?.serviceOrderId || null,
       assignmentType: 'primary',
       status: 'active',
       assignedBy,
@@ -238,6 +252,8 @@ export async function autoAssignTechnician(
         score: best.score,
         factors: best.factors,
         autoAssigned: true,
+        serviceRequestId, // store SR ID for traceability
+        requestNumber: sr?.requestNumber,
       },
     },
   })

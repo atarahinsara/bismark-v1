@@ -40,12 +40,15 @@ export async function POST(
     const body = rawBody ? JSON.parse(rawBody) : {}
 
     // Find return order with lines
+    // NOTE: ReturnOrder uses loose FK pattern (LAW-04) — salesOrderId and invoiceId
+    // are string fields, not Prisma relations. Only `lines` and `refunds` are relations.
+    // BUG-01 fix: removed invalid `include: { salesOrder, invoice }` that caused
+    // PrismaClientValidationError. The route only needs invoiceId (string) for
+    // Credit Note creation, which is already available on the ReturnOrder record.
     const returnOrder = await db.returnOrder.findFirst({
       where: { id: returnOrderId, tenantId, deletedAt: null },
       include: {
         lines: true,
-        salesOrder: true,
-        invoice: true,
       },
     })
 
@@ -54,17 +57,22 @@ export async function POST(
     }
 
     // State validation — must be 'received' to reverse
+    if (returnOrder.status === 'closed') {
+      // Idempotency at business level: already reversed → return success
+      return jsonResponse({
+        data: {
+          message: 'Return order already reversed (closed)',
+          returnOrderId,
+          status: 'closed',
+          refundAmount: returnOrder.refundAmount,
+        },
+      })
+    }
+
     if (returnOrder.status !== 'received') {
       throw new ConflictException(
         `Return order must be in 'received' status to reverse (current: ${returnOrder.status})`,
       )
-    }
-
-    // Check if already reversed (idempotency at business level)
-    if (returnOrder.status === 'closed') {
-      return jsonResponse({
-        data: { message: 'Return order already reversed (closed)', returnOrderId },
-      })
     }
 
     // Validate reason is provided
@@ -73,6 +81,20 @@ export async function POST(
         { field: 'reason', message: 'Required for audit trail', code: 'REQUIRED' },
       ])
     }
+
+    // Pre-generate business codes BEFORE the transaction.
+    // BUG-01 fix (root cause): BusinessCodeGenerator.generate() internally calls
+    // db.$transaction, which deadlocks when called inside UnitOfWork.execute()
+    // (nested transaction on SQLite). Pre-generating outside the UoW avoids this.
+    // We need: inventory_transaction number (per line), credit_note number, journal_entry number.
+    const inventoryTxnNumbers: string[] = []
+    for (let i = 0; i < returnOrder.lines.length; i++) {
+      inventoryTxnNumbers.push(await BusinessCodeGenerator.generate('inventory_transaction', tenantId))
+    }
+    const cnNumber = returnOrder.invoiceId
+      ? await BusinessCodeGenerator.generate('credit_note', tenantId)
+      : null
+    const jeNumber = await BusinessCodeGenerator.generate('journal_entry', tenantId)
 
     // Execute reversal in a transaction
     const result = await UnitOfWork.execute(async (uow) => {
@@ -84,6 +106,7 @@ export async function POST(
       }
 
       // Step 2: Reverse inventory — stock back in
+      let lineIdx = 0
       for (const line of returnOrder.lines) {
         const stockItem = await uow.tx.stockItem.findFirst({
           where: { tenantId, productId: line.productId },
@@ -98,12 +121,11 @@ export async function POST(
             },
           })
 
-          // Create inventory transaction (stock in)
-          const txnNumber = await BusinessCodeGenerator.generate('inventory_transaction', tenantId)
+          // Create inventory transaction (stock in) — use pre-generated number
           await uow.tx.inventoryTransaction.create({
             data: {
               tenantId,
-              transactionNumber: txnNumber,
+              transactionNumber: inventoryTxnNumbers[lineIdx],
               productId: line.productId,
               transactionType: 'return_in',
               quantity: line.quantityReturned,
@@ -116,12 +138,12 @@ export async function POST(
             },
           })
         }
+        lineIdx++
       }
 
       // Step 3: Create Credit Note if invoice exists
       let creditNoteId: string | null = null
-      if (returnOrder.invoiceId) {
-        const cnNumber = await BusinessCodeGenerator.generate('credit_note', tenantId)
+      if (returnOrder.invoiceId && cnNumber) {
         const creditNote = await uow.tx.creditNote.create({
           data: {
             tenantId,
@@ -157,8 +179,7 @@ export async function POST(
         }
       }
 
-      // Step 4: Create reversing Journal Entry (LAW-34/35)
-      const jeNumber = await BusinessCodeGenerator.generate('journal_entry', tenantId)
+      // Step 4: Create reversing Journal Entry (LAW-34/35) — use pre-generated number
       const fiscalYear = await uow.tx.fiscalYear.findFirst({
         where: { tenantId, startDate: { lte: new Date() }, endDate: { gte: new Date() } },
       })
@@ -186,14 +207,17 @@ export async function POST(
             entryDate: new Date(),
             status: 'posted',
             description: `Return reversal: ${returnOrder.returnNumber} - ${body.reason}`,
-            referenceType: 'return_order',
-            referenceId: returnOrder.id,
+            // BUG-01 fix: JournalEntry model uses sourceType/sourceId, not referenceType/referenceId
+            sourceType: 'credit_note',
+            sourceId: creditNoteId || returnOrder.id,
             fiscalYearId: fiscalYear?.id,
             fiscalPeriodId: fiscalPeriod?.id,
             totalDebit: refundAmount,
             totalCredit: refundAmount,
+            postedAt: new Date(),
+            postedBy: ctx.userId,
             version: 1,
-            metadata: { returnOrderId, creditNoteId },
+            metadata: { returnOrderId, creditNoteId, reversalReason: body.reason },
           },
         })
 
