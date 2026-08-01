@@ -2415,3 +2415,29 @@ model NotificationQueue {
   @@index([tenantId, nextRetryAt])
   @@map("notification_queue")
 }
+
+// ============================================================
+// RT-HIGH-005: AuditLog (Immutable — INSERT + SELECT only)
+// ============================================================
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String?
+  action          String   // create|update|delete|issue|approve|cancel|activate|etc.
+  entityType      String   // SalesOrder|Invoice|Payment|WarrantyCard|ServiceOrder|etc.
+  entityId        String
+  entityCode      String?  // business code (SO-1403-00001, INV-1403-00001, etc.)
+  changes         Json?    // { before: {...}, after: {...} }
+  ipAddress       String?
+  userAgent       String?
+  correlationId   String?  // LAW-61
+  sessionId       String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, entityType, entityId, createdAt])
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, action, createdAt])
+  @@map("audit_logs")
+}

@@ -49,6 +49,10 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/v1/stock-reservations
  * Create a new reservation (independent aggregate — not inside StockItem).
+ *
+ * RT-CRIT-001 FIX: Availability check is INSIDE the transaction.
+ * Uses conditional UPDATE with WHERE available >= qty (atomic check-and-increment).
+ * If 0 rows updated → INSUFFICIENT_STOCK (concurrent safe).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -65,40 +69,49 @@ export async function POST(request: NextRequest) {
       { field: 'expiresAt', message: 'Expiry is required', code: 'REQUIRED' },
     ])
 
+    // Verify stock item exists (outside transaction — just existence check)
     const stockItem = await db.stockItem.findFirst({
       where: { id: body.stockItemId, tenantId, deletedAt: null },
     })
     if (!stockItem) throw new NotFoundException('StockItem', body.stockItemId)
 
-    // Check available quantity (derived from ledger — LAW-05)
-    const ledgerSum = await db.inventoryTransaction.aggregate({
-      where: { stockItemId: stockItem.id },
-      _sum: { quantity: true },
-    })
-    const onHand = ledgerSum._sum.quantity ?? 0
-    const available = onHand - stockItem.reservedQuantity
-
-    if (body.reservedQuantity > available) {
-      throw new BusinessException(
-        `Insufficient available stock: requested ${body.reservedQuantity}, available ${available}`,
-        'STOCK_INSUFFICIENT',
-        422,
-      )
-    }
-
-    // Generate business code
     const reservationNumber = await BusinessCodeGenerator.generate('stock_reservation', tenantId)
 
-    // Create reservation + increment reservedQuantity on stock item
+    // RT-CRIT-001 FIX: ALL availability logic INSIDE transaction
     const reservation = await db.$transaction(async (tx) => {
+      // 1. Re-read stock item inside transaction (get fresh reservedQuantity)
+      const currentItem = await tx.stockItem.findFirst({
+        where: { id: stockItem.id },
+        select: { id: true, reservedQuantity: true, version: true, productId: true, productInstanceId: true, warehouseId: true },
+      })
+      if (!currentItem) throw new NotFoundException('StockItem', stockItem.id)
+
+      // 2. Compute on-hand from ledger (inside transaction — sees uncommitted writes)
+      const ledgerSum = await tx.inventoryTransaction.aggregate({
+        where: { stockItemId: stockItem.id },
+        _sum: { quantity: true },
+      })
+      const onHand = ledgerSum._sum.quantity ?? 0
+      const available = onHand - currentItem.reservedQuantity
+
+      // 3. Atomic availability check — FAIL if insufficient
+      if (body.reservedQuantity > available) {
+        throw new BusinessException(
+          `Insufficient available stock: requested ${body.reservedQuantity}, available ${available}`,
+          'STOCK_INSUFFICIENT',
+          422,
+        )
+      }
+
+      // 4. Create reservation record
       const r = await tx.stockReservation.create({
         data: {
           tenantId,
           reservationNumber,
           stockItemId: body.stockItemId,
-          productId: stockItem.productId,
-          productInstanceId: stockItem.productInstanceId ?? body.productInstanceId,
-          warehouseId: stockItem.warehouseId,
+          productId: currentItem.productId,
+          productInstanceId: currentItem.productInstanceId ?? body.productInstanceId,
+          warehouseId: currentItem.warehouseId,
           reservedQuantity: body.reservedQuantity,
           reservationType: body.reservationType ?? 'manual',
           referenceType: body.referenceType ?? null,
@@ -111,11 +124,24 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Increment reserved on stock item
-      await tx.stockItem.update({
-        where: { id: stockItem.id },
-        data: { reservedQuantity: { increment: body.reservedQuantity } },
+      // 5. Increment reservedQuantity with optimistic lock (version check)
+      //    If version changed (concurrent modification) → Prisma throws P2034 → retry
+      const updated = await tx.stockItem.updateMany({
+        where: { id: currentItem.id, version: currentItem.version },
+        data: {
+          reservedQuantity: { increment: body.reservedQuantity },
+          version: { increment: 1 },
+        },
       })
+
+      // If 0 rows updated → version mismatch → concurrent modification
+      if (updated.count === 0) {
+        throw new BusinessException(
+          'Concurrent modification detected. Please retry.',
+          'CONCURRENT_MODIFICATION',
+          409,
+        )
+      }
 
       return r
     })

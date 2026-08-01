@@ -9,6 +9,9 @@ import { DomainException, ValidationException, NotFoundException, BusinessExcept
  * Allocate a payment/credit to an invoice/charge.
  * LAW-41: Append-only (no update/delete). Reversal = negative allocation.
  * LAW-42: Balance derived (update openAmount on transactions).
+ *
+ * RT-CRIT-003 FIX: All reads and checks are INSIDE the transaction.
+ * Uses optimistic lock (version) to detect concurrent modifications.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -22,23 +25,29 @@ export async function POST(request: NextRequest) {
     if (!body.creditTransactionId) throw new ValidationException('Credit transaction (payment) required', [{ field: 'creditTransactionId', message: 'Required', code: 'REQUIRED' }])
     if (!body.allocatedAmount || body.allocatedAmount <= 0) throw new ValidationException('Amount must be positive', [{ field: 'allocatedAmount', message: 'Must be > 0', code: 'INVALID' }])
 
-    const debitTxn = await db.aRTransaction.findFirst({ where: { id: body.debitTransactionId, tenantId } })
-    if (!debitTxn) throw new NotFoundException('ARTransaction', body.debitTransactionId)
-
-    const creditTxn = await db.aRTransaction.findFirst({ where: { id: body.creditTransactionId, tenantId } })
-    if (!creditTxn) throw new NotFoundException('ARTransaction', body.creditTransactionId)
-
-    if (debitTxn.customerPartyId !== creditTxn.customerPartyId) {
-      throw new BusinessException('Transactions must belong to same customer', 'CUSTOMER_MISMATCH', 422)
-    }
-    if (debitTxn.openAmount < body.allocatedAmount) {
-      throw new BusinessException(`Invoice open amount (${debitTxn.openAmount}) < allocation (${body.allocatedAmount})`, 'INSUFFICIENT_OPEN', 422)
-    }
-    if (Math.abs(creditTxn.openAmount) < body.allocatedAmount) {
-      throw new BusinessException(`Payment open amount (${Math.abs(creditTxn.openAmount)}) < allocation (${body.allocatedAmount})`, 'INSUFFICIENT_OPEN', 422)
-    }
-
     await UnitOfWork.execute(async (uow) => {
+      // RT-CRIT-003 FIX: Read BOTH transactions INSIDE the transaction
+      const debitTxn = await uow.tx.aRTransaction.findFirst({
+        where: { id: body.debitTransactionId, tenantId },
+      })
+      if (!debitTxn) throw new NotFoundException('ARTransaction', body.debitTransactionId)
+
+      const creditTxn = await uow.tx.aRTransaction.findFirst({
+        where: { id: body.creditTransactionId, tenantId },
+      })
+      if (!creditTxn) throw new NotFoundException('ARTransaction', body.creditTransactionId)
+
+      // Validate inside transaction (sees uncommitted writes)
+      if (debitTxn.customerPartyId !== creditTxn.customerPartyId) {
+        throw new BusinessException('Transactions must belong to same customer', 'CUSTOMER_MISMATCH', 422)
+      }
+      if (debitTxn.openAmount < body.allocatedAmount) {
+        throw new BusinessException(`Invoice open amount (${debitTxn.openAmount}) < allocation (${body.allocatedAmount})`, 'INSUFFICIENT_OPEN', 422)
+      }
+      if (Math.abs(creditTxn.openAmount) < body.allocatedAmount) {
+        throw new BusinessException(`Payment open amount (${Math.abs(creditTxn.openAmount)}) < allocation (${body.allocatedAmount})`, 'INSUFFICIENT_OPEN', 422)
+      }
+
       // LAW-41: Create allocation (append-only)
       await uow.tx.aRAllocation.create({
         data: {
@@ -51,27 +60,33 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Update open amounts (LAW-42: openAmount is derived-like cache, updated atomically)
+      // Update open amounts with optimistic lock (RT-CRIT-003)
       const newDebitOpen = debitTxn.openAmount - body.allocatedAmount
-      const newCreditOpen = creditTxn.openAmount + body.allocatedAmount // credit has negative open
+      const newCreditOpen = creditTxn.openAmount + body.allocatedAmount
 
-      await uow.tx.aRTransaction.update({
-        where: { id: debitTxn.id },
+      const debitUpdate = await uow.tx.aRTransaction.updateMany({
+        where: { id: debitTxn.id, version: debitTxn.version },
         data: {
           openAmount: newDebitOpen,
           status: newDebitOpen <= 0 ? 'fully_allocated' : 'partially_allocated',
           version: { increment: 1 },
         },
       })
+      if (debitUpdate.count === 0) {
+        throw new BusinessException('Concurrent modification on debit transaction. Please retry.', 'CONCURRENT_MODIFICATION', 409)
+      }
 
-      await uow.tx.aRTransaction.update({
-        where: { id: creditTxn.id },
+      const creditUpdate = await uow.tx.aRTransaction.updateMany({
+        where: { id: creditTxn.id, version: creditTxn.version },
         data: {
           openAmount: newCreditOpen,
           status: Math.abs(newCreditOpen) < 0.01 ? 'fully_allocated' : 'partially_allocated',
           version: { increment: 1 },
         },
       })
+      if (creditUpdate.count === 0) {
+        throw new BusinessException('Concurrent modification on credit transaction. Please retry.', 'CONCURRENT_MODIFICATION', 409)
+      }
 
       await uow.outbox.append({
         tenantId, aggregateType: 'ARAllocation', aggregateId: body.debitTransactionId,
@@ -81,7 +96,7 @@ export async function POST(request: NextRequest) {
       })
     })
 
-    const response = jsonResponse({ data: { status: 'allocated', message: 'AR allocation created (LAW-41: append-only, LAW-42: balance derived).' } })
+    const response = jsonResponse({ data: { status: 'allocated', message: 'AR allocation created (LAW-41: append-only, LAW-42: balance derived, RT-CRIT-003: atomic).' } })
     await IdempotencyHelper.store(request, await response.clone().text(), 200)
     return response
   } catch (e) {

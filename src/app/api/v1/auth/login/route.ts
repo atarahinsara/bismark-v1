@@ -3,11 +3,13 @@ import { jsonResponse, errorResponse } from '@/lib/api-helpers'
 import { login, AuthError } from '@/lib/auth'
 import { IdempotencyHelper } from '@/lib/shared'
 import { DomainException } from '@/lib/shared'
+import { rateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limiter'
 
 /**
  * POST /api/v1/auth/login
  *
  * Authenticates a user and returns JWT access + refresh tokens.
+ * Rate limited: 5 attempts per IP per 60 seconds (RT-MED-004).
  *
  * Request body:
  *   { username: string, password: string }
@@ -16,10 +18,18 @@ import { DomainException } from '@/lib/shared'
  *   200: { accessToken, refreshToken, expiresIn, user }
  *   401: Invalid credentials
  *   423: Account locked
+ *   429: Rate limited
  *   403: Account disabled
  */
 export async function POST(request: NextRequest) {
   try {
+    // RT-MED-004: Rate limit BEFORE any DB access
+    const ipAddress = getClientIP(request)
+    const rateLimitResult = rateLimit('auth:login', ipAddress)
+    if (!rateLimitResult.allowed) {
+      return rateLimitResponse(rateLimitResult)
+    }
+
     const idempotent = await IdempotencyHelper.check(request)
     if (idempotent.cached && idempotent.response) return idempotent.response
 
@@ -41,7 +51,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
     const userAgent = request.headers.get('user-agent') || undefined
 
     const result = await login(body.username, body.password, ipAddress, userAgent)
@@ -51,7 +60,10 @@ export async function POST(request: NextRequest) {
 
     return new Response(responseBody, {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+      },
     })
   } catch (e) {
     if (e instanceof AuthError) {
