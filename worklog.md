@@ -2463,3 +2463,74 @@ Stage Summary:
 - Readiness Score: Current 55% → Final 95%
 - توصیه نهایی: Architecture Freeze حفظ شود، Phase 2 (Production Foundation) بحرانی‌ترین مرحله بعدی است
 - هیچ کدی تغییر نکرد، هیچ migration اجرا نشد، هیچ package نصب نشد
+
+---
+Task ID: MASTER-EXECUTION-PLAN
+Agent: General-Purpose Sub Agent (Master Execution Planner)
+Task: Produce Master Execution Plan — convert Roadmap into executable, measurable, controllable plan. No code changes.
+
+Work Log:
+- بررسی نهایی Repository برای verify اعداد:
+  • Prisma Models: 116 (verified)
+  • API Routes: 154 (verified)
+  • RBAC Coverage: 148/154 = 96% (verified)
+  • Architecture Laws: 54 (verified)
+  • Domain Events: 46 (verified)
+  • Sagas: 2 (sales_order_fulfillment, return_processing — verified)
+  • UI Views: 17 (verified)
+  • Unit Test Files: 5 (verified)
+  • Mobile Routes: 0 (verified)
+  • Device Models: 0 (verified)
+  • Backup Scripts: 1 (migrate-to-postgres.sh فقط — verified)
+  • Observability Tools: 0 (verified)
+  • page.tsx: 1503 lines (verified)
+  • mock-data.ts: 425 lines (verified)
+- Verify file paths:
+  • schema.prisma, schema.postgres.prisma, migrate-to-postgres.sh, Dockerfile, docker-compose.production.yml, ci-cd.yml, auth-service.ts, rbac.ts, middleware.ts, run-workers.ts, api-client.ts, api-helpers.ts, rate-limiter.ts, event-catalog.ts, business-code-generator.ts, Caddyfile, .env — ALL EXISTS
+- نگارش سند جامع به `/home/z/my-project/docs/bismark-master-execution-plan.md` (2016 lines، 99KB، 32 sections):
+  • Section 1: Executive Execution Summary
+  • Section 2: Current Baseline (verified numbers)
+  • Section 3: Existing Foundation (35 capability با reuse strategy)
+  • Section 4: Target Capability Map (27 capability A-Z+AA)
+  • Section 5: Master Execution Backlog (80+ Task با ID، Priority، Dependencies، Acceptance Criteria)
+  • Section 6: Priority System (P0-P4)
+  • Section 7: Phase 2 Detail (20 Task)
+  • Section 8: Database Migration Plan (SQLite → PostgreSQL)
+  • Section 9: Backup & DR Plan
+  • Section 10: Observability Plan
+  • Section 11: Phase 3 — Core Business Completion
+  • Section 12: Phase 4 — Technician Platform (Offline Architecture detail)
+  • Section 13: Phase 5 — Customer + Representative Portal
+  • Section 14: Phase 6 — Dispatch + SLA (Algorithm + V1/V1.5/V2)
+  • Section 15: Phase 7 — Reporting + BI
+  • Section 16: Phase 8 — CRM + Customer 360
+  • Section 17: Phase 9 — Automation
+  • Section 18: Phase 10 — AI (V2)
+  • Section 19: File-by-File Execution Map (P0+P1)
+  • Section 20: Database Change Map (per Phase)
+  • Section 21: API Execution Map (per Phase)
+  • Section 22: Event Execution Map (30+ new events)
+  • Section 23: Test Execution Plan (15 test types + 15 invariants)
+  • Section 24: Acceptance Test Matrix (100 tests)
+  • Section 25: Phase Exit Gates
+  • Section 26: Definition of Done
+  • Section 27: Risk Register (15 risks)
+  • Section 28: Realistic Timeline (24-51 weeks)
+  • Section 29: Resource Plan
+  • Section 30: Final Roadmap (visual)
+  • Section 31: Final Readiness Model (3 separate indicators)
+  • Section 32: Final Answers (12 questions)
+
+Stage Summary:
+- Master Execution Plan در `docs/bismark-master-execution-plan.md` (2016 lines، 99KB)
+- 80+ Task با Task ID (T-2-01 to T-10-08)
+- 100 Acceptance Test (AT-001 to AT-100)
+- 15 Risk در Risk Register
+- 3 Readiness Indicators جداگانه:
+  • Capability Coverage: 55% (current)
+  • Production Readiness: 20% (current — نه production ready)
+  • Enterprise Readiness: 35% (current)
+- Timeline: 24-51 weeks (Phase 2-9)
+- اولین Task قابل اجرا: T-2-01 (PostgreSQL Migration)
+- هیچ کدی تغییر نکرد، هیچ migration اجرا نشد، هیچ package نصب نشد
+- سند تبدیل شد به Single Source of Truth برای اجرای پروژه BISMARK
