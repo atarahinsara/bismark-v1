@@ -1,4 +1,5 @@
 import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
+import { auditLog } from '@/lib/audit'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'

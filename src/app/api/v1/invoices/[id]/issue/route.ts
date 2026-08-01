@@ -1,4 +1,5 @@
 import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
+import { auditLog } from '@/lib/audit'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getTenantId, jsonResponse, errorResponse } from '@/lib/api-helpers'
@@ -60,6 +61,12 @@ export async function POST(request: NextRequest, { params }: Params) {
       })
     })
 
+    await auditLog.record({
+      tenantId, userId: ctx.userId, action: 'issue', entityType: 'Invoice',
+      entityId: invoice.id, entityCode: invoice.invoiceNumber,
+      changes: { before: { status: 'draft' }, after: { status: 'issued' } },
+      correlationId: invoice.id, sessionId: ctx.sessionId,
+    }).catch(() => {})
     const response = jsonResponse({
       data: {
         id: invoice.id, invoiceNumber: invoice.invoiceNumber, status: 'issued',
