@@ -67,6 +67,72 @@ export async function getAuthenticatedRoles(): Promise<string[]> {
 }
 
 /**
+ * F-03 fix (Audit v4): Resolve the Party ID for a customer-portal user.
+ *
+ * Customer portal routes (e.g., /api/v1/customer/invoices) need to query
+ * entities by Party ID (customerPartyId), not User ID. This helper maps
+ * the authenticated User to their associated Party.
+ *
+ * Resolution order:
+ *   1. User.metadata.partyId (explicit link — set by admin or self-service)
+ *   2. Party matched by User.email (Party.metadata.email)
+ *   3. Party matched by User.phone (Party.metadata.phone)
+ *
+ * Returns null if the user is not linked to a Party (e.g., staff users).
+ */
+export async function getCustomerPartyId(userId: string, tenantId: string): Promise<string | null> {
+  // 1. Look up user
+  const user = await db.user.findFirst({
+    where: { id: userId, tenantId, deletedAt: null },
+    select: { id: true, email: true, phone: true, metadata: true, userType: true },
+  })
+  if (!user) return null
+
+  // 2. Check User.metadata.partyId (explicit link)
+  const metadata = user.metadata as Record<string, unknown> | null
+  if (metadata && typeof metadata.partyId === 'string') {
+    // Verify the party exists
+    const party = await db.party.findFirst({
+      where: { id: metadata.partyId, tenantId, deletedAt: null },
+      select: { id: true },
+    })
+    if (party) return party.id
+  }
+
+  // 3. Try matching by email
+  if (user.email) {
+    // SQLite has limited JSON query support; fetch person parties and filter in JS.
+    // For production (PostgreSQL), use a JSON path query instead.
+    const parties = await db.party.findMany({
+      where: { tenantId, deletedAt: null, partyType: 'person' },
+      select: { id: true, metadata: true, displayName: true },
+    })
+    for (const p of parties) {
+      const pm = p.metadata as Record<string, unknown> | null
+      if (pm && typeof pm.email === 'string' && pm.email === user.email) {
+        return p.id
+      }
+    }
+  }
+
+  // 4. Try matching by phone
+  if (user.phone) {
+    const parties = await db.party.findMany({
+      where: { tenantId, deletedAt: null, partyType: 'person' },
+      select: { id: true, metadata: true, displayName: true },
+    })
+    for (const p of parties) {
+      const pm = p.metadata as Record<string, unknown> | null
+      if (pm && typeof pm.phone === 'string' && pm.phone === user.phone) {
+        return p.id
+      }
+    }
+  }
+
+  return null
+}
+
+/**
  * Standard JSON API response wrapper.
  */
 export function jsonResponse(data: unknown, status: number = 200): Response {

@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import type { ApiError } from '@/lib/api-client'
+import { apiFetch } from '@/lib/api-client'
 
 const API_BASE = '/api/v1'
 
@@ -25,9 +26,8 @@ const claimStatusLabels: Record<string, string> = {
   approved: 'تأییدشده', rejected: 'ردشده', service_order: 'سفارش تعمیر', closed: 'بسته‌شده',
 }
 
-function fetchAPI(path: string, options?: RequestInit) {
-  return fetch(`${API_BASE}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } })
-}
+// F-06 fix (Audit v4): use apiFetch (auto-attaches Bearer token) instead of raw fetch.
+const fetchAPI = apiFetch
 
 export function WarrantyView() {
   const [tab, setTab] = useState<'cards' | 'claims'>('cards')

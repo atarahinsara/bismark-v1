@@ -223,6 +223,9 @@ export async function login(
 
 /**
  * Logout — revoke the session associated with the given access token.
+ *
+ * F-01 fix (Audit v4): also invalidates the in-memory session cache so the
+ * revocation takes effect immediately (without waiting for the 30s TTL).
  */
 export async function logout(accessToken: string): Promise<void> {
   try {
@@ -239,6 +242,8 @@ export async function logout(accessToken: string): Promise<void> {
         revokedReason: 'User logged out',
       },
     })
+    // F-01 fix: invalidate cache so token is rejected on next request
+    invalidateSessionCache(payload.sessionId)
   } catch {
     // Token is already invalid — nothing to revoke
   }
@@ -379,6 +384,114 @@ export async function getUserPermissions(userId: string, tenantId: string): Prom
   })
 
   return rolePermissions.map((rp) => rp.permission.key)
+}
+
+// ============================================================
+// F-01 Fix (Audit v4): Session Revocation Check
+// ============================================================
+//
+// Problem: Middleware only verifies JWT signature + expiration.
+//          Logout updates Session.status='revoked' in DB but middleware
+//          doesn't check this, so token remains valid for full TTL (15min).
+//
+// Fix: Add `isSessionActive(sessionId)` that queries the Session table.
+//      Called by `requirePermission` (in rbac.ts) on every protected request.
+//
+// Performance: Uses a 30-second in-memory cache to avoid hitting DB on every
+//              request. Trade-off: revoked token remains valid for up to 30s
+//              after logout. Acceptable for sandbox; production should use Redis.
+//
+// Cache eviction: entries expire automatically after TTL; no unbounded growth
+//                 because we only store entries for sessions seen recently.
+//
+// IMPORTANT: Cache is stored on globalThis to survive Turbopack hot-reloads
+//            and to be shared across all module instances (Turbopack may
+//            load the same module multiple times in dev mode).
+
+interface SessionCacheEntry {
+  active: boolean
+  expiresAt: number // epoch ms
+}
+
+const SESSION_CACHE_TTL_MS = 30_000 // 30 seconds
+
+interface GlobalWithSessionCache {
+  __bismarkSessionCache?: Map<string, SessionCacheEntry>
+  __bismarkSessionCacheLastCleanup?: number
+}
+
+function getSessionCache(): Map<string, SessionCacheEntry> {
+  const g = globalThis as unknown as GlobalWithSessionCache
+  if (!g.__bismarkSessionCache) {
+    g.__bismarkSessionCache = new Map()
+    g.__bismarkSessionCacheLastCleanup = Date.now()
+  }
+  return g.__bismarkSessionCache
+}
+
+function getLastCleanup(): number {
+  const g = globalThis as unknown as GlobalWithSessionCache
+  return g.__bismarkSessionCacheLastCleanup ?? Date.now()
+}
+
+function setLastCleanup(t: number): void {
+  const g = globalThis as unknown as GlobalWithSessionCache
+  g.__bismarkSessionCacheLastCleanup = t
+}
+
+// Periodic cleanup (every 5 minutes) to prevent unbounded growth
+function cleanupSessionCache(): void {
+  const now = Date.now()
+  if (now - getLastCleanup() < 5 * 60 * 1000) return
+  setLastCleanup(now)
+  const cache = getSessionCache()
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt < now) cache.delete(key)
+  }
+}
+
+/**
+ * Check if a session is still active (not revoked).
+ * Uses a 30-second in-memory cache to reduce DB load.
+ *
+ * Returns true if the session is active, false if revoked or not found.
+ */
+export async function isSessionActive(sessionId: string): Promise<boolean> {
+  cleanupSessionCache()
+  const cache = getSessionCache()
+
+  const cached = cache.get(sessionId)
+  if (cached) {
+    if (cached.expiresAt < Date.now()) {
+      cache.delete(sessionId)
+    } else {
+      return cached.active
+    }
+  }
+
+  const session = await db.session.findFirst({
+    where: { id: sessionId },
+    select: { status: true, expiresAt: true },
+  })
+
+  const now = new Date()
+  const active = !!session && session.status === 'active' && session.expiresAt > now
+
+  cache.set(sessionId, {
+    active,
+    expiresAt: Date.now() + SESSION_CACHE_TTL_MS,
+  })
+
+  return active
+}
+
+/**
+ * Invalidate the cached session status. Called by logout() to ensure
+ * immediate revocation (without waiting for TTL to expire).
+ */
+export function invalidateSessionCache(sessionId: string): void {
+  const cache = getSessionCache()
+  cache.delete(sessionId)
 }
 
 /**

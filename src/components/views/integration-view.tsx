@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import type { ApiError } from '@/lib/api-client'
+import { apiFetch } from '@/lib/api-client'
 
 const API_BASE = '/api/v1'
 
@@ -51,7 +52,8 @@ export function IntegrationView() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/integration`)
+      // F-06 fix (Audit v4): use apiFetch to auto-attach Bearer token
+      const res = await apiFetch('/integration')
       const json = await res.json()
       setData(json.data)
     } catch (e) { console.error(e) } finally { setLoading(false) }
@@ -62,7 +64,8 @@ export function IntegrationView() {
   const handleProcessOutbox = async () => {
     setProcessing(true)
     try {
-      const res = await fetch(`${API_BASE}/integration`, { method: 'POST' })
+      // F-06 fix (Audit v4): use apiFetch to auto-attach Bearer token
+      const res = await apiFetch('/integration', { method: 'POST' })
       const json = await res.json()
       toast.success(`Outbox processed: ${json.data.published} published, ${json.data.failed} failed`)
       load()

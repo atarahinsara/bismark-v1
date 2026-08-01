@@ -65,13 +65,23 @@ services:
     restart: unless-stopped
 
   # ============================================================
-  # Outbox Worker (LAW-08)
+  # Background Worker (LAW-08/09/10)
+  #
+  # F-05 fix (Audit v4): Consolidated 3 broken worker services
+  # (outbox-worker, inbox-worker, snapshot-worker) into a single
+  # `worker` service that runs `run-workers.ts`. The old services
+  # referenced non-existent files (outbox-worker.ts, inbox-worker.ts,
+  # snapshot-worker.ts) — only run-workers.ts existed.
+  #
+  # For independent scaling in production, split run-workers.ts into
+  # 3 separate entry points and re-add the 3 services. For sandbox,
+  # one process running all 3 loops is sufficient.
   # ============================================================
-  outbox-worker:
+  worker:
     build:
       context: .
       dockerfile: Dockerfile
-    command: bun run src/workers/outbox-worker.ts
+    command: bun run src/workers/run-workers.ts
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://bismark:bismark@postgres:5432/bismark?schema=public
@@ -80,41 +90,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # ============================================================
-  # Inbox Worker (LAW-09/26)
-  # ============================================================
-  inbox-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: bun run src/workers/inbox-worker.ts
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://bismark:bismark@postgres:5432/bismark?schema=public
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # ============================================================
-  # Snapshot Worker (LAW-10)
-  # ============================================================
-  snapshot-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: bun run src/workers/snapshot-worker.ts
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://bismark:bismark@postgres:5432/bismark?schema=public
-    depends_on:
-      postgres:
         condition: service_healthy
     restart: unless-stopped
 

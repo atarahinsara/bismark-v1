@@ -13,11 +13,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
+import { apiFetch } from '@/lib/api-client'
 
 const API_BASE = '/api/v1'
-function fetchAPI(path: string, options?: RequestInit) {
-  return fetch(`${API_BASE}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } })
-}
+// F-06 fix (Audit v4): use apiFetch (auto-attaches Bearer token) instead of raw fetch.
+const fetchAPI = apiFetch
 
 const reqStatusLabels: Record<string, string> = {
   draft: 'پیش‌نویس', submitted: 'ارسال‌شده', validated: 'تأییدشده', service_order: 'سفارش تعمیر', cancelled: 'لغوشده',

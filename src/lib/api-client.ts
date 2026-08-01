@@ -119,6 +119,57 @@ export const authApi = {
 // HTTP Request Helper (auto-attaches auth token)
 // ============================================================
 
+/**
+ * F-06 fix (Audit v4): Public fetch wrapper that auto-attaches the Bearer token.
+ *
+ * Views that previously used raw `fetch()` without auth headers (returning 401)
+ * should use this instead. It mirrors the behaviour of the private `request<T>`
+ * helper used by all the typed API singletons.
+ *
+ * Usage:
+ *   const res = await apiFetch('/warranty-cards')
+ *   const data = await res.json()
+ *
+ *   await apiFetch('/warranty-cards', {
+ *     method: 'POST',
+ *     body: JSON.stringify(form),
+ *     headers: { 'Idempotency-Key': crypto.randomUUID() },
+ *   })
+ */
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  }
+
+  // Auto-attach Bearer token (F-06 fix)
+  const token = getAccessToken()
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  })
+
+  // Handle 401 — try refresh, then retry once
+  if (response.status === 401 && token) {
+    try {
+      await authApi.refresh()
+      const newToken = getAccessToken()
+      if (newToken) {
+        headers['Authorization'] = `Bearer ${newToken}`
+        return fetch(`${API_BASE}${path}`, { ...options, headers })
+      }
+    } catch {
+      // refresh failed — fall through to original 401 response
+    }
+  }
+
+  return response
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},

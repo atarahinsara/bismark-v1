@@ -7,7 +7,7 @@ import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac
 
 /**
  * GET /api/v1/appointments
- * List appointment with pagination.
+ * List appointments with pagination.
  * Requires: service.read
  */
 export async function GET(request: NextRequest) {
@@ -35,14 +35,19 @@ export async function GET(request: NextRequest) {
     })
   } catch (e) {
     if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode })
-    return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to list appointment', statusCode: 500 })
+    return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to list appointments', statusCode: 500 })
   }
 }
 
 /**
  * POST /api/v1/appointments
  * Create a new appointment.
+ * Required body: technicianId, customerId, scheduledStartTime, scheduledEndTime
+ * Optional: serviceRequestId, serviceOrderId, window, address, notes, metadata
  * Requires: service.create
+ *
+ * Audit v3 F-02 fix: replaced `data: { tenantId, ...body }` template pattern
+ * with explicit whitelist + BusinessCodeGenerator + validation.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -57,15 +62,51 @@ export async function POST(request: NextRequest) {
     const body = rawBody ? JSON.parse(rawBody) : {}
     const tenantId = await getTenantId()
 
+    // Validation — required fields per Prisma schema
+    const errors: Array<{ field: string; message: string; code: string }> = []
+    if (!body.technicianId) errors.push({ field: 'technicianId', message: 'Technician is required', code: 'REQUIRED' })
+    if (!body.customerId) errors.push({ field: 'customerId', message: 'Customer is required', code: 'REQUIRED' })
+    if (!body.scheduledStartTime) errors.push({ field: 'scheduledStartTime', message: 'Start time is required', code: 'REQUIRED' })
+    if (!body.scheduledEndTime) errors.push({ field: 'scheduledEndTime', message: 'End time is required', code: 'REQUIRED' })
+    if (errors.length > 0) throw new ValidationException('Missing required fields', errors)
+
+    // Verify technician (Party) exists — loose FK (LAW-01)
+    const technician = await db.party.findFirst({
+      where: { id: body.technicianId, tenantId, deletedAt: null },
+    })
+    if (!technician) throw new NotFoundException('Party', body.technicianId)
+
+    const customer = await db.party.findFirst({
+      where: { id: body.customerId, tenantId, deletedAt: null },
+    })
+    if (!customer) throw new NotFoundException('Party', body.customerId)
+
+    // Generate business code (LAW-02)
+    const appointmentNumber = await BusinessCodeGenerator.generate('appointment', tenantId)
+
     const item = await db.appointment.create({
-      data: { tenantId, ...body, metadata: body.metadata ?? {} },
+      data: {
+        tenantId,
+        appointmentNumber,
+        technicianId: body.technicianId,
+        customerId: body.customerId,
+        serviceRequestId: body.serviceRequestId ?? null,
+        serviceOrderId: body.serviceOrderId ?? null,
+        scheduledStartTime: new Date(body.scheduledStartTime),
+        scheduledEndTime: new Date(body.scheduledEndTime),
+        status: 'requested',
+        window: body.window ?? 'morning',
+        address: body.address ?? null,
+        notes: body.notes ?? null,
+        metadata: body.metadata ?? {},
+      },
     })
 
     const responseBody = JSON.stringify({ data: item })
     await IdempotencyHelper.store(request, responseBody, 201, rawBody)
     return new Response(responseBody, { status: 201, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
-    if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode })
+    if (e instanceof DomainException) return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })
     return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to create appointment', statusCode: 500 })
   }
 }

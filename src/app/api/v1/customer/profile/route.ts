@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { jsonResponse, errorResponse } from '@/lib/api-helpers'
 import { requireAuth, requirePermission, unauthorizedResponse } from '@/lib/rbac'
+import { DomainException } from '@/lib/shared'
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
     })
     return jsonResponse({ data: user })
   } catch (e) {
+    if (e instanceof DomainException) {
+      return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode })
+    }
     return errorResponse({ code: 'INTERNAL_ERROR', message: 'Failed', statusCode: 500 })
   }
 }

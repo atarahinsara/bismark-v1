@@ -145,4 +145,24 @@ export const BUSINESS_CODE_DEFINITIONS: Record<
   // Inventory operations (Sprint 2.2C+)
   stock_transfer: { prefix: 'TR', padding: 5 },
   stock_count: { prefix: 'SC', padding: 5 },
+
+  // Sprint 7.1 — GAP modules (Phase 1A — Audit v3 F-02 fix)
+  appointment: { prefix: 'APT', padding: 5 },
+  complaint: { prefix: 'CMP', padding: 5 },
+  installation: { prefix: 'INS', padding: 5 },
+  lead: { prefix: 'LED', padding: 5 },
+  purchase_order: { prefix: 'PO', padding: 5 },
+  goods_receipt: { prefix: 'GR', padding: 5 },
+  survey: { prefix: 'SVY', padding: 5 },
+  survey_template: { prefix: 'SVT', padding: 4 },
+  sla_policy: { prefix: 'SLA', padding: 4 },
+  sla_tracker: { prefix: 'SLT', padding: 5 },
+  coupon: { prefix: 'CPN', padding: 6 },
+  promotion: { prefix: 'PROM', padding: 5 },
+  customer_interaction: { prefix: 'CIN', padding: 6 },
+  loyalty_account: { prefix: 'LYA', padding: 5 },
+  loyalty_transaction: { prefix: 'LYT', padding: 6 },
+  technician_skill: { prefix: 'TSK', padding: 5 },
+  technician_availability: { prefix: 'TAV', padding: 5 },
+  technician_performance: { prefix: 'TPF', padding: 5 },
 }

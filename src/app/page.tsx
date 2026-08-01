@@ -32,7 +32,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTheme } from 'next-themes'
 import { mockUsers, mockRoles, mockParties, mockBranches, dashboardStats } from '@/lib/mock-data'
-import { authApi, isAuthenticated, clearAuthTokens, type ApiError } from '@/lib/api-client'
+import { authApi, isAuthenticated, clearAuthTokens, apiFetch, type ApiError } from '@/lib/api-client'
 import type { User, Role, Party, UserType, UserStatus, PartyType, PartyStatus } from '@/lib/types'
 import { ProductsView } from '@/components/views/products-view'
 import { InventoryView } from '@/components/views/inventory-view'
@@ -457,13 +457,29 @@ function Topbar({ onMenuClick, title }: { onMenuClick: () => void; title: string
 // DASHBOARD VIEW
 // ============================================================
 function DashboardView() {
+  // F-07 fix (Audit v4): fetch real stats from /api/v1/system/stats instead of mock data.
+  const [liveStats, setLiveStats] = useState<{
+    totalUsers: number; activeUsers: number; lockedUsers: number
+    totalParties: number; totalRoles: number; totalBranches: number
+  } | null>(null)
+
+  useEffect(() => {
+    apiFetch('/system/stats')
+      .then((r) => r.json())
+      .then((d) => setLiveStats(d.data))
+      .catch(() => {
+        // Fallback to mock if API fails (e.g., not authenticated yet)
+        setLiveStats(dashboardStats)
+      })
+  }, [])
+
   const stats = [
-    { label: 'کل کاربران', value: dashboardStats.totalUsers, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950/30' },
-    { label: 'کاربران فعال', value: dashboardStats.activeUsers, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-950/30' },
-    { label: 'کاربران قفل‌شده', value: dashboardStats.lockedUsers, icon: Lock, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-950/30' },
-    { label: 'اشخاص ثبت‌شده', value: dashboardStats.totalParties, icon: UserCog, color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-950/30' },
-    { label: 'نقش‌های سیستم', value: dashboardStats.totalRoles, icon: Shield, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950/30' },
-    { label: 'شعب فعال', value: dashboardStats.totalBranches, icon: Building2, color: 'text-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-950/30' },
+    { label: 'کل کاربران', value: liveStats?.totalUsers ?? 0, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950/30' },
+    { label: 'کاربران فعال', value: liveStats?.activeUsers ?? 0, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-950/30' },
+    { label: 'کاربران قفل‌شده', value: liveStats?.lockedUsers ?? 0, icon: Lock, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-950/30' },
+    { label: 'اشخاص ثبت‌شده', value: liveStats?.totalParties ?? 0, icon: UserCog, color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-950/30' },
+    { label: 'نقش‌های سیستم', value: liveStats?.totalRoles ?? 0, icon: Shield, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950/30' },
+    { label: 'شعب فعال', value: liveStats?.totalBranches ?? 0, icon: Building2, color: 'text-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-950/30' },
   ]
 
   const recentUsers = mockUsers.slice(0, 5)

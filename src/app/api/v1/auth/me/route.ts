@@ -1,17 +1,18 @@
 import { NextRequest } from 'next/server'
 import { jsonResponse, errorResponse } from '@/lib/api-helpers'
-import { getAuthContext, getUserPermissions } from '@/lib/auth'
+import { getAuthContext, getUserPermissions, isSessionActive } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { DomainException } from '@/lib/shared'
 
 /**
  * GET /api/v1/auth/me
  *
  * Returns the current authenticated user's profile + permissions.
- * Requires: Bearer token (authenticated)
+ * Requires: Bearer token (authenticated) + active session (F-01 fix).
  *
  * Response:
  *   200: { data: { user, permissions } }
- *   401: Not authenticated
+ *   401: Not authenticated or session revoked (F-01)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +21,16 @@ export async function GET(request: NextRequest) {
       return errorResponse({
         code: 'UNAUTHORIZED',
         message: 'Not authenticated',
+        statusCode: 401,
+      })
+    }
+
+    // F-01 fix: verify session is still active
+    const sessionActive = await isSessionActive(authCtx.sessionId)
+    if (!sessionActive) {
+      return errorResponse({
+        code: 'SESSION_REVOKED',
+        message: 'Session has been revoked. Please login again.',
         statusCode: 401,
       })
     }
@@ -60,6 +71,9 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (e) {
+    if (e instanceof DomainException) {
+      return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode })
+    }
     console.error('[auth/me] error:', e)
     return errorResponse({
       code: 'INTERNAL_ERROR',
