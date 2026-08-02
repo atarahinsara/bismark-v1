@@ -4,12 +4,17 @@
   "image": "mcr.microsoft.com/devcontainers/php:1-8.3-bookworm",
 
   "features": {
-  "ghcr.io/devcontainers/features/node:1": {
-    "version": "20"
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "27"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
-  "ghcr.io/devcontainers/features/github-cli:1": {}
-},
+
+  "privileged": true,
+
   "customizations": {
     "vscode": {
       "extensions": [
