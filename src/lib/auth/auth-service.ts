@@ -106,10 +106,12 @@ export async function login(
   }
 
   // Check email verification — block login if email not verified
-  if (!user.emailVerifiedAt) {
+  // Super admins bypass this check (they are pre-verified system accounts)
+  const isSuperAdmin = user.userRoles?.some(ur => ur.role?.key === 'super_admin')
+  if (!user.emailVerifiedAt && !isSuperAdmin) {
     throw new AuthError(
       'EMAIL_NOT_VERIFIED',
-      'لطفاً ابتدا ایمیل خود را تأیید کنید. ',
+      'لطفاً ابتدا ایمیل خود را تأیید کنید.',
       403,
     )
   }

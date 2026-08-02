@@ -1,4 +1,5 @@
 'use client'
+import { parseApiError } from '@/lib/errors/translate-error'
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -45,7 +46,7 @@ function ResetPasswordContent() {
         throw new Error(data.error || data.detail || 'خطا')
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'خطا در تغییر رمز')
+      const msg = await parseApiError(res); toast.error(msg)
     } finally {
       setLoading(false)
     }

@@ -88,10 +88,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // In dev mode, include the verification link in the response so the UI can display it
+    const devVerificationLink = process.env.NODE_ENV !== 'production'
+      ? '/verify-email?token=' + result.verificationToken
+      : undefined
+
     return NextResponse.json(
       {
         userId: result.userId,
-        message: 'Registration successful. Please check your email to verify your account.',
+        message: 'ثبت‌نام موفق بود. لطفاً ایمیل خود را بررسی کنید.',
+        devVerificationLink,
       },
       { status: 201 },
     )

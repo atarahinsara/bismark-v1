@@ -201,6 +201,19 @@ export async function resetPassword(
     throw new AuthExtensionError('TOKEN_EXPIRED', 'Reset token has expired', 410)
   }
 
+  // Protect super_admin accounts from being reset via token
+  const userRoles = await db.userRole.findFirst({
+    where: { userId: record.userId },
+    include: { role: true },
+  })
+  if (userRoles?.role?.key === 'super_admin') {
+    throw new AuthExtensionError(
+      'PROTECTED_ACCOUNT',
+      'این حساب محافظت می‌شود و قابل بازیابی نیست.',
+      403,
+    )
+  }
+
   const passwordHash = hashPassword(newPassword)
 
   await db.$transaction([
