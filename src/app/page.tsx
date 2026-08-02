@@ -289,7 +289,7 @@ function Sidebar({ currentView, onViewChange, mobileOpen, onMobileClose }: {
       <aside className={`
         fixed lg:static inset-y-0 right-0 z-50 lg:z-auto
         w-72 bg-sidebar border-l border-sidebar-border
-        flex flex-col
+        flex flex-col h-screen overflow-hidden
         transform transition-transform duration-200
         ${mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
       `}>
@@ -308,7 +308,7 @@ function Sidebar({ currentView, onViewChange, mobileOpen, onMobileClose }: {
         </div>
 
         {/* Navigation */}
-        <ScrollArea className="flex-1 px-3 py-4">
+        <div className="flex-1 overflow-y-auto px-3 py-4">
           <nav className="space-y-6">
             {navGroups.map((group) => (
               <div key={group.title}>
@@ -344,7 +344,7 @@ function Sidebar({ currentView, onViewChange, mobileOpen, onMobileClose }: {
               </div>
             ))}
           </nav>
-        </ScrollArea>
+        </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-sidebar-border">
