@@ -1,10 +1,15 @@
 {
-  "name": "BISMARK ERP",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "name": "BISMARK ERP Development",
+
+  "image": "mcr.microsoft.com/devcontainers/php:1-8.3-bookworm",
+
   "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
+
   "customizations": {
     "vscode": {
       "extensions": [
@@ -12,7 +17,8 @@
         "esbenp.prettier-vscode",
         "prisma.prisma",
         "bradlc.vscode-tailwindcss",
-        "ms-azuretools.vscode-docker"
+        "ms-azuretools.vscode-docker",
+        "bmewburn.vscode-intelephense-client"
       ],
       "settings": {
         "editor.formatOnSave": true,
@@ -21,8 +27,16 @@
       }
     }
   },
-  "forwardPorts": [3000, 5432, 6379],
-  "postCreateCommand": "curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL=\"$HOME/.bun\" && export PATH=\"$BUN_INSTALL/bin:$PATH\" && bun install && bun run db:generate",
+
+  "forwardPorts": [
+    3000,
+    8000,
+    5432,
+    6379
+  ],
+
+  "postCreateCommand": "curl -fsSL https://bun.sh/install | bash && echo 'export BUN_INSTALL=\"$HOME/.bun\"' >> ~/.bashrc && echo 'export PATH=\"$BUN_INSTALL/bin:$PATH\"' >> ~/.bashrc",
+
   "remoteEnv": {
     "DATABASE_URL": "postgresql://bismark:bismark@localhost:5432/bismark?schema=public",
     "REDIS_URL": "redis://localhost:6379",
