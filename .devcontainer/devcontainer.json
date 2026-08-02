@@ -10,6 +10,8 @@
       "version": "latest"
     }
   },
+  "postCreateCommand": "curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL=\"$HOME/.bun\" && export PATH=\"$BUN_INSTALL/bin:$PATH\" && bun install && bun run db:generate",
+  "postStartCommand": "sudo service ssh start 2>/dev/null || sudo /usr/sbin/sshd 2>/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq openssh-server && sudo service ssh start) || true",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -31,7 +33,6 @@
     5432,
     6379
   ],
-  "postCreateCommand": "curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL=\"$HOME/.bun\" && export PATH=\"$BUN_INSTALL/bin:$PATH\" && bun install && bun run db:generate",
   "remoteEnv": {
     "DATABASE_URL": "postgresql://bismark:bismark@localhost:5432/bismark?schema=public",
     "REDIS_URL": "redis://localhost:6379",
