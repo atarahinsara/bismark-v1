@@ -123,7 +123,9 @@ model User {
   username     String
   displayName  String
   email        String?
+  emailVerifiedAt DateTime?
   phone        String?
+  avatarUrl     String?
   passwordHash String?
   userType     String      @default("staff") // customer|representative|technician|service_center|staff
   status       String      @default("active") // active|suspended|locked|deleted
@@ -147,6 +149,9 @@ model User {
 
   userRoles    UserRole[]
   sessions     Session[]
+  passwordResetTokens  PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  userNotifications   UserNotification[]
 
   @@unique([tenantId, username])
   @@index([tenantId, status])
@@ -2314,8 +2319,8 @@ model NotificationTemplate {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
+  notifications  Notification[]
 
-  notifications Notification[]
 
   @@unique([tenantId, code, version, language, channel])
   @@index([tenantId, code, status])
@@ -3343,4 +3348,88 @@ model ServiceReport {
   @@index([tenantId, technicianId, reportDate])
   @@index([tenantId, status])
   @@map("service_reports")
+}
+// ============================================================
+// AUTH EXTENSIONS — Password Reset, Email Verification
+// ============================================================
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  token     String   @unique
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  token     String   @unique
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// ============================================================
+// SYSTEM SETTINGS — Configurable from Admin Panel
+// ============================================================
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  key       String
+  value     String
+  type      String   @default("string") // string|boolean|number|json
+  category  String   @default("general") // general|security|email|captcha|notifications
+  description String?
+  isPublic  Boolean  @default(false) // visible to non-admin users?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, key])
+  @@index([category])
+  @@map("system_settings")
+}
+
+// ============================================================
+// NOTIFICATIONS — Real DB-backed notification system
+
+
+// ============================================================
+// USER NOTIFICATIONS — Simple in-app notifications with read/unread
+// ============================================================
+
+model UserNotification {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String    @default("info") // info|success|warning|error|system
+  category  String    @default("general") // general|auth|security|order|inventory|financial
+  link      String?
+  metadata  Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([tenantId, createdAt])
+  @@map("user_notifications")
 }

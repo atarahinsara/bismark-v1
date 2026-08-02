@@ -113,6 +113,11 @@ export function extractBearerToken(authHeader: string | null): string | null {
 export const PUBLIC_ROUTES = [
   '/api/v1/auth/login',
   '/api/v1/auth/refresh',
+  '/api/v1/auth/register',
+  '/api/v1/auth/verify-email',
+  '/api/v1/auth/forgot-password',
+  '/api/v1/auth/reset-password',
+  '/api/v1/captcha/challenge',
   '/api/v1/system/health',
   '/api/metrics', // T-2-10: Prometheus metrics (IP-restricted in route)
 ]
