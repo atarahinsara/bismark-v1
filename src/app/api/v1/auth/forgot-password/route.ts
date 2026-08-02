@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       }
       if (process.env.NODE_ENV !== 'production') {
         console.log(
-          `[forgot-password] Reset link for ${normalizedEmail}: ${baseUrl}/auth/reset-password?token=${result.token}`,
+          `[forgot-password] Reset link for ${normalizedEmail}: ${baseUrl}/reset-password?token=${result.token}`,
         )
       }
     }

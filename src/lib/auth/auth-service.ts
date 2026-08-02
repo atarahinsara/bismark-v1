@@ -76,11 +76,13 @@ export async function login(
   userAgent?: string,
   mfaToken?: string,
 ): Promise<AuthResult> {
-  // Find user by username (cross-tenant lookup for sandbox — in production, tenant is from subdomain)
+  // Find user by username OR email (cross-tenant lookup for sandbox)
   const user = await db.user.findFirst({
     where: {
-      username,
-      deletedAt: null,
+      OR: [
+        { username, deletedAt: null },
+        { email: username, deletedAt: null },
+      ],
     },
     include: {
       tenant: true,
@@ -100,6 +102,15 @@ export async function login(
       'ACCOUNT_LOCKED',
       `Account is locked until ${user.lockedUntil?.toISOString()}. Try again later.`,
       423,
+    )
+  }
+
+  // Check email verification — block login if email not verified
+  if (!user.emailVerifiedAt) {
+    throw new AuthError(
+      'EMAIL_NOT_VERIFIED',
+      'لطفاً ابتدا ایمیل خود را تأیید کنید. ',
+      403,
     )
   }
 

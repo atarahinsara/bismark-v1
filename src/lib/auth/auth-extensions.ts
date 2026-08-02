@@ -81,7 +81,7 @@ export async function register(input: {
       displayName: input.displayName || username,
       passwordHash,
       userType: 'staff',
-      status: 'active',
+      status: 'pending',
       isActive: false, // inactive until email verified
       locale: 'fa-IR',
       metadata: { registeredFrom: input.ipAddress || 'unknown' },
@@ -131,7 +131,7 @@ export async function verifyEmail(token: string): Promise<{ userId: string; emai
     }),
     db.user.update({
       where: { id: record.userId },
-      data: { emailVerifiedAt: new Date(), isActive: true },
+      data: { emailVerifiedAt: new Date(), isActive: true, status: 'active' },
     }),
   ])
 
@@ -259,6 +259,63 @@ export async function changePassword(
     data: { status: 'revoked', revokedAt: new Date(), revokedReason: 'password_changed' },
   })
 }
+
+/**
+ * Resend email verification.
+ * - Invalidates existing tokens
+ * - Creates a new token
+ * - Rate-limited: max 3 resends per hour
+ */
+export async function resendVerificationEmail(
+  email: string,
+  tenantId: string,
+): Promise<{ token: string | null; userId: string | null; rateLimited?: boolean }> {
+  const user = await db.user.findFirst({
+    where: { tenantId, email, deletedAt: null },
+  })
+
+  if (!user) {
+    return { token: null, userId: null }
+  }
+
+  // Already verified
+  if (user.emailVerifiedAt) {
+    return { token: null, userId: user.id }
+  }
+
+  // Rate limit: check how many tokens were created in the last hour
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+  const recentTokens = await db.emailVerificationToken.count({
+    where: { userId: user.id, createdAt: { gt: oneHourAgo } },
+  })
+
+  if (recentTokens >= 3) {
+    return { token: null, userId: user.id, rateLimited: true }
+  }
+
+  // Invalidate existing tokens
+  await db.emailVerificationToken.updateMany({
+    where: { userId: user.id, usedAt: null },
+    data: { usedAt: new Date() },
+  })
+
+  // Create new token
+  const token = crypto.randomBytes(32).toString('hex')
+  const tokenHash = hashToken(token)
+
+  await db.emailVerificationToken.create({
+    data: {
+      userId: user.id,
+      tenantId,
+      token,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+  })
+
+  return { token, userId: user.id }
+}
+
 
 /**
  * Get all active sessions for a user.

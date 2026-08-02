@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     // without a configured SMTP server.
     if (process.env.NODE_ENV !== 'production') {
       console.log(
-        `[register] Verification link for ${normalizedEmail}: ${baseUrl}/auth/verify-email?token=${result.verificationToken}`,
+        `[register] Verification link for ${normalizedEmail}: ${baseUrl}/verify-email?token=${result.verificationToken}`,
       )
     }
 

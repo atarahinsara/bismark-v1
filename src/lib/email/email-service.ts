@@ -139,7 +139,7 @@ export async function sendEmail(message: EmailMessage): Promise<{ success: boole
  * Send email verification email.
  */
 export async function sendVerificationEmail(email: string, token: string, baseUrl: string): Promise<void> {
-  const link = `${baseUrl}/auth/verify-email?token=${token}`
+  const link = `${baseUrl}/verify-email?token=${token}`
   await sendEmail({
     to: email,
     subject: 'تأیید ایمیل — BISMARK ERP',
@@ -164,7 +164,7 @@ export async function sendVerificationEmail(email: string, token: string, baseUr
  * Send password reset email.
  */
 export async function sendPasswordResetEmail(email: string, token: string, baseUrl: string): Promise<void> {
-  const link = `${baseUrl}/auth/reset-password?token=${token}`
+  const link = `${baseUrl}/reset-password?token=${token}`
   await sendEmail({
     to: email,
     subject: 'بازیابی رمز عبور — BISMARK ERP',
