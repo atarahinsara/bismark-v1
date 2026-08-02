@@ -59,6 +59,8 @@ import { SettingsView as AccountSettingsView } from '@/components/views/settings
 import { AdminDashboardView } from '@/components/views/admin-dashboard-view'
 import { AdminUsersView } from '@/components/views/admin-users-view'
 import { AdminAuditLogsView } from '@/components/views/admin-audit-logs-view'
+import { MfaSetupView } from '@/components/views/mfa-setup-view'
+import { SecurityDashboardView } from '@/components/views/security-dashboard-view'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import Link from 'next/link'
 
@@ -285,6 +287,7 @@ const navGroups = [
       { view: 'profile' as View, label: 'پروفایل', icon: UserIcon },
       { view: 'sessions' as View, label: 'نشست‌های فعال', icon: Shield },
       { view: 'inbox' as View, label: 'اعلان‌ها', icon: Bell },
+      { view: 'mfa-setup' as View, label: 'احراز هویت دو مرحله‌ای', icon: Shield },
       { view: 'account-settings' as View, label: 'تنظیمات سیستم', icon: Settings },
     ],
   },
@@ -294,6 +297,7 @@ const navGroups = [
       { view: 'admin-dashboard' as View, label: 'داشبورد مدیریت', icon: LayoutDashboard },
       { view: 'admin-users' as View, label: 'کاربران', icon: Users },
       { view: 'admin-audit-logs' as View, label: 'لاگ ممیزی', icon: Activity },
+      { view: 'security-dashboard' as View, label: 'داشبورد امنیتی', icon: Shield },
     ],
   },
   {
@@ -1538,6 +1542,8 @@ export default function Page() {
           {view === 'admin-dashboard' && <AdminDashboardView />}
           {view === 'admin-users' && <AdminUsersView />}
           {view === 'admin-audit-logs' && <AdminAuditLogsView />}
+          {view === 'mfa-setup' && <MfaSetupView />}
+          {view === 'security-dashboard' && <SecurityDashboardView />}
         </main>
 
         <footer className="border-t border-border bg-background px-6 py-3 text-xs text-muted-foreground flex items-center justify-between shrink-0">

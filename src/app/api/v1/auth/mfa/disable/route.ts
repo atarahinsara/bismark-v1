@@ -1,55 +1,34 @@
-/**
- * POST /api/v1/auth/mfa/disable
- *
- * Disable MFA for the authenticated user.
- * Body: { password: "current_password" }
- *
- * Requires password re-confirmation for security.
- *
- * T-2-17: MFA disable.
- */
-
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { jsonResponse, errorResponse } from '@/lib/api-helpers'
-import { requireAuth, unauthorizedResponse } from '@/lib/rbac'
-import { DomainException, ValidationException } from '@/lib/shared'
-import { verifyPassword } from '@/lib/auth/password'
-import { logger } from '@/lib/logger'
+import { getAdminAuth } from '@/lib/admin-auth'
+import { verifyMfaToken } from '@/lib/auth/mfa'
 
-export async function POST(request: NextRequest) {
+/** POST /api/v1/auth/mfa/disable — Disable MFA (requires current TOTP code) */
+export async function POST(req: NextRequest) {
   try {
-    const ctx = requireAuth(request)
-    if (!ctx) return unauthorizedResponse()
+    const ctx = await getAdminAuth(req)
+    if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const body = await request.json()
-    const password = String(body.password || '')
+    const body = await req.json()
+    const token = String(body.token || '').replace(/\s/g, '')
 
-    if (!password) {
-      throw new ValidationException('Password required', [
-        { field: 'password', message: 'Required', code: 'REQUIRED' },
-      ])
+    if (!token || !/^\d{6}$/.test(token)) {
+      return NextResponse.json({ error: 'Valid TOTP token required' }, { status: 422 })
     }
 
     const user = await db.user.findFirst({
-      where: { id: ctx.userId, tenantId: ctx.tenantId, deletedAt: null },
-      select: { id: true, passwordHash: true, mfaEnabled: true },
+      where: { id: ctx.userId, deletedAt: null },
+      select: { id: true, mfaEnabled: true, mfaSecret: true },
     })
 
-    if (!user) {
-      return errorResponse({ code: 'USER_NOT_FOUND', message: 'User not found', statusCode: 404 })
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!user.mfaEnabled) return NextResponse.json({ error: 'MFA not enabled' }, { status: 400 })
+
+    const valid = verifyMfaToken(user.mfaSecret!, token)
+    if (!valid) {
+      return NextResponse.json({ error: 'Invalid TOTP token' }, { status: 401 })
     }
 
-    if (!user.mfaEnabled) {
-      return errorResponse({ code: 'MFA_NOT_ENABLED', message: 'MFA is not enabled', statusCode: 400 })
-    }
-
-    // Verify password
-    if (!user.passwordHash || !verifyPassword(password, user.passwordHash)) {
-      return errorResponse({ code: 'INVALID_PASSWORD', message: 'Password incorrect', statusCode: 401 })
-    }
-
-    // Disable MFA
     await db.user.update({
       where: { id: ctx.userId },
       data: {
@@ -60,19 +39,12 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    logger.info({ userId: ctx.userId, action: 'mfa_disabled' }, 'MFA disabled')
-
-    return jsonResponse({
-      data: {
-        message: 'MFA disabled. Account is now less secure.',
-        enabled: false,
-      },
+    return NextResponse.json({
+      enabled: false,
+      message: 'MFA disabled successfully.',
     })
-  } catch (e) {
-    if (e instanceof DomainException) {
-      return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode, errors: (e as ValidationException).errors })
-    }
-    logger.error({ err: e }, 'MFA disable failed')
-    return errorResponse({ code: 'INTERNAL_ERROR', message: 'MFA disable failed', statusCode: 500 })
+  } catch (err) {
+    console.error('[mfa/disable] Error:', err)
+    return NextResponse.json({ error: 'MFA disable failed' }, { status: 500 })
   }
 }

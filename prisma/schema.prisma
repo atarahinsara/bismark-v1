@@ -3433,3 +3433,28 @@ model UserNotification {
   @@index([tenantId, createdAt])
   @@map("user_notifications")
 }
+
+// ============================================================
+// EMAIL LOGS — Track all outgoing emails
+// ============================================================
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  to        String
+  subject   String
+  body      String?
+  type      String   @default("general") // verification|reset_password|login_notification|test|general
+  status    String   @default("pending") // pending|sent|failed
+  errorMessage String?
+  messageId String? // provider message ID
+  ipAddress String?
+  sentAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("email_logs")
+}
