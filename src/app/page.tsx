@@ -51,8 +51,14 @@ import { NotificationDashboardView } from '@/components/views/notification-dashb
 import { NotificationTemplatesView } from '@/components/views/notification-templates-view'
 import { NotificationsView } from '@/components/views/notifications-view'
 import { NotificationPreferencesView } from '@/components/views/notification-preferences-view'
+import { ProfileView } from '@/components/views/profile-view'
+import { SessionsView } from '@/components/views/sessions-view'
+import { NotificationsInboxView } from '@/components/views/notifications-inbox-view'
+import { SettingsView as AccountSettingsView } from '@/components/views/settings-view'
+import { LanguageSwitcher } from '@/components/language-switcher'
+import Link from 'next/link'
 
-type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'warranty' | 'service' | 'financial' | 'integration' | 'branches' | 'audit' | 'settings' | 'notification-dashboard' | 'notification-templates' | 'notifications' | 'notification-preferences'
+type View = 'dashboard' | 'users' | 'roles' | 'parties' | 'products' | 'inventory' | 'inventory-ledger' | 'transfers' | 'cycle-counts' | 'sales' | 'fulfillment' | 'billing' | 'returns' | 'warranty' | 'service' | 'financial' | 'integration' | 'branches' | 'audit' | 'settings' | 'notification-dashboard' | 'notification-templates' | 'notifications' | 'notification-preferences' | 'profile' | 'sessions' | 'inbox' | 'account-settings'
 
 const userTypeLabels: Record<UserType, string> = {
   customer: 'مشتری',
@@ -175,9 +181,9 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                   <input type="checkbox" className="rounded border-input" />
                   <span className="text-muted-foreground">مرا به خاطر بسپار</span>
                 </label>
-                <Button variant="link" className="p-0 h-auto text-primary" type="button">
+                <Link href="/forgot-password" className="p-0 h-auto text-primary text-sm hover:underline">
                   رمز عبور را فراموش کرده‌اید؟
-                </Button>
+                </Link>
               </div>
               {error && (
                 <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 text-sm">
@@ -197,6 +203,12 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 <Badge variant="secondary" className="text-xs">admin / demo1234</Badge>
                 <Badge variant="secondary" className="text-xs">سوپر ادمین</Badge>
               </div>
+            </div>
+            <div className="mt-4 pt-4 border-t text-center text-sm">
+              <span className="text-muted-foreground">حساب کاربری ندارید؟ </span>
+              <Link href="/register" className="text-primary hover:underline font-medium">
+                ثبت‌نام کنید
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -261,6 +273,15 @@ const navGroups = [
       { view: 'notifications' as View, label: 'مرکز اعلان‌ها', icon: Bell },
       { view: 'notification-templates' as View, label: 'الگوهای اعلان', icon: FileText },
       { view: 'notification-preferences' as View, label: 'ترجیحات اعلان', icon: Settings },
+    ],
+  },
+  {
+    title: 'حساب کاربری',
+    items: [
+      { view: 'profile' as View, label: 'پروفایل', icon: UserIcon },
+      { view: 'sessions' as View, label: 'نشست‌های فعال', icon: Shield },
+      { view: 'inbox' as View, label: 'اعلان‌ها', icon: Bell },
+      { view: 'account-settings' as View, label: 'تنظیمات سیستم', icon: Settings },
     ],
   },
   {
@@ -366,7 +387,7 @@ function Sidebar({ currentView, onViewChange, mobileOpen, onMobileClose }: {
 // ============================================================
 // TOPBAR
 // ============================================================
-function Topbar({ onMenuClick, title }: { onMenuClick: () => void; title: string }) {
+function Topbar({ onMenuClick, title, onViewChange, onLogout }: { onMenuClick: () => void; title: string; onViewChange: (v: View) => void; onLogout: () => void }) {
   const { theme, setTheme } = useTheme()
   const [notifOpen, setNotifOpen] = useState(false)
 
@@ -422,9 +443,7 @@ function Topbar({ onMenuClick, title }: { onMenuClick: () => void; title: string
       </Button>
 
       {/* Language */}
-      <Button variant="ghost" size="icon">
-        <Globe className="w-5 h-5" />
-      </Button>
+      <LanguageSwitcher />
 
       {/* User menu */}
       <DropdownMenu>
@@ -439,11 +458,24 @@ function Topbar({ onMenuClick, title }: { onMenuClick: () => void; title: string
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>حساب کاربری</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>پروفایل من</DropdownMenuItem>
-          <DropdownMenuItem>نشست‌های فعال</DropdownMenuItem>
-          <DropdownMenuItem>تنظیمات</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onViewChange('profile')}>
+            <UserIcon className="w-4 h-4 ml-2" />
+            پروفایل من
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onViewChange('sessions')}>
+            <Shield className="w-4 h-4 ml-2" />
+            نشست‌های فعال
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onViewChange('inbox')}>
+            <Bell className="w-4 h-4 ml-2" />
+            اعلان‌ها
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onViewChange('account-settings')}>
+            <Settings className="w-4 h-4 ml-2" />
+            تنظیمات سیستم
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-destructive">
+          <DropdownMenuItem className="text-destructive" onClick={onLogout}>
             <LogOut className="w-4 h-4 ml-2" />
             خروج
           </DropdownMenuItem>
@@ -1444,6 +1476,10 @@ export default function Page() {
     'notification-templates': 'الگوهای اعلان',
     notifications: 'مرکز اعلان‌ها',
     'notification-preferences': 'ترجیحات اعلان',
+    profile: 'پروفایل',
+    sessions: 'نشست‌های فعال',
+    inbox: 'اعلان‌ها',
+    'account-settings': 'تنظیمات سیستم',
   }
 
   return (
@@ -1456,7 +1492,7 @@ export default function Page() {
       />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <Topbar onMenuClick={() => setMobileSidebarOpen(true)} title={viewTitles[view]} />
+        <Topbar onMenuClick={() => setMobileSidebarOpen(true)} title={viewTitles[view]} onViewChange={setView} onLogout={handleLogout} />
 
         <main className="flex-1 overflow-auto p-4 lg:p-6">
           {view === 'dashboard' && <DashboardView />}
@@ -1483,6 +1519,10 @@ export default function Page() {
           {view === 'notification-templates' && <NotificationTemplatesView />}
           {view === 'notifications' && <NotificationsView />}
           {view === 'notification-preferences' && <NotificationPreferencesView />}
+          {view === 'profile' && <ProfileView />}
+          {view === 'sessions' && <SessionsView />}
+          {view === 'inbox' && <NotificationsInboxView />}
+          {view === 'account-settings' && <AccountSettingsView />}
         </main>
 
         <footer className="border-t border-border bg-background px-6 py-3 text-xs text-muted-foreground flex items-center justify-between shrink-0">
