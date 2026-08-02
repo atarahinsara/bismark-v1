@@ -1,10 +1,11 @@
 {
   "name": "BISMARK ERP",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+
   "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
+
   "customizations": {
     "vscode": {
       "extensions": [
@@ -21,8 +22,15 @@
       }
     }
   },
-  "forwardPorts": [3000, 5432, 6379],
+
+  "forwardPorts": [
+    3000,
+    5432,
+    6379
+  ],
+
   "postCreateCommand": "curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL=\"$HOME/.bun\" && export PATH=\"$BUN_INSTALL/bin:$PATH\" && bun install && bun run db:generate",
+
   "remoteEnv": {
     "DATABASE_URL": "postgresql://bismark:bismark@localhost:5432/bismark?schema=public",
     "REDIS_URL": "redis://localhost:6379",
