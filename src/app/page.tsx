@@ -56,6 +56,9 @@ import { ProfileView } from '@/components/views/profile-view'
 import { SessionsView } from '@/components/views/sessions-view'
 import { NotificationsInboxView } from '@/components/views/notifications-inbox-view'
 import { SettingsView as AccountSettingsView } from '@/components/views/settings-view'
+import { AdminDashboardView } from '@/components/views/admin-dashboard-view'
+import { AdminUsersView } from '@/components/views/admin-users-view'
+import { AdminAuditLogsView } from '@/components/views/admin-audit-logs-view'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import Link from 'next/link'
 
@@ -283,6 +286,14 @@ const navGroups = [
       { view: 'sessions' as View, label: 'نشست‌های فعال', icon: Shield },
       { view: 'inbox' as View, label: 'اعلان‌ها', icon: Bell },
       { view: 'account-settings' as View, label: 'تنظیمات سیستم', icon: Settings },
+    ],
+  },
+  {
+    title: 'مدیریت سیستم',
+    items: [
+      { view: 'admin-dashboard' as View, label: 'داشبورد مدیریت', icon: LayoutDashboard },
+      { view: 'admin-users' as View, label: 'کاربران', icon: Users },
+      { view: 'admin-audit-logs' as View, label: 'لاگ ممیزی', icon: Activity },
     ],
   },
   {
@@ -1524,6 +1535,9 @@ export default function Page() {
           {view === 'sessions' && <SessionsView />}
           {view === 'inbox' && <NotificationsInboxView />}
           {view === 'account-settings' && <AccountSettingsView />}
+          {view === 'admin-dashboard' && <AdminDashboardView />}
+          {view === 'admin-users' && <AdminUsersView />}
+          {view === 'admin-audit-logs' && <AdminAuditLogsView />}
         </main>
 
         <footer className="border-t border-border bg-background px-6 py-3 text-xs text-muted-foreground flex items-center justify-between shrink-0">
