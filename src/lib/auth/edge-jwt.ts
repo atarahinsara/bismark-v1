@@ -16,10 +16,6 @@ export const PUBLIC_ROUTES = [
   '/api/v1/auth/reset-password',
   '/api/v1/captcha/challenge',
   '/api/v1/system/health',
-  '/api/v1/admin',
-  '/api/v1/admin/stats',
-  '/api/v1/admin/users',
-  '/api/v1/admin/audit-logs',
   '/api/metrics',
 ]
 
