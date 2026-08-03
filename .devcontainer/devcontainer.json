@@ -35,5 +35,6 @@
     "DATABASE_URL": "postgresql://bismark:bismark@localhost:5432/bismark?schema=public",
     "REDIS_URL": "redis://localhost:6379",
     "NODE_ENV": "development"
-  }
+  },
+  "postStartCommand": "docker compose up -d && sleep 5 && nohup npx next dev -p 3000 > /tmp/bismark-dev.log 2>&1 &"
 }
