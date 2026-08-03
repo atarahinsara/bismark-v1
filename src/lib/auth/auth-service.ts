@@ -159,12 +159,13 @@ export async function login(
     )
   }
 
-  // Login successful — reset failed attempts
+  // Login successful — reset failed attempts and unlock account
   await db.user.update({
     where: { id: user.id },
     data: {
       failedLoginAttempts: 0,
       lockedUntil: null,
+      status: 'active',
       lastLoginAt: new Date(),
     },
   })
