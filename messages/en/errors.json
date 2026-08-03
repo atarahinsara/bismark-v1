@@ -1,0 +1,14 @@
+{
+  "invalidCredentials": "Invalid username or password",
+  "accountLocked": "Your account is locked",
+  "emailNotVerified": "Please verify your email first",
+  "weakPassword": "Password is too weak",
+  "usernameTaken": "This username is already taken",
+  "emailTaken": "This email is already registered",
+  "invalidToken": "Invalid or already used link",
+  "rateLimited": "Too many requests",
+  "internalError": "Internal server error",
+  "networkError": "Network error",
+  "forbidden": "Access forbidden",
+  "notFound": "Not found"
+}
