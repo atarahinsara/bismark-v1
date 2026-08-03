@@ -33,7 +33,7 @@ export interface EmailMessage {
 }
 
 let cachedConfig: { config: EmailConfig | null; ts: number } = { config: null, ts: 0 }
-const CONFIG_CACHE_MS = 60_000 // 1 minute
+const CONFIG_CACHE_MS = 5_000 // 5 seconds
 
 /**
  * Get email configuration from database (SystemSetting table).
