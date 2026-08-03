@@ -163,23 +163,7 @@ export async function middleware(request: NextRequest) {
   // Verify JWT
   let payload = await verifyTokenEdge(token)
 
-  // Dev fallback: if edge verification fails, decode payload without signature check
-  // This allows admin panel testing while JWT edge verification is being debugged
-  if (!payload && process.env.NODE_ENV !== 'production') {
-    try {
-      const parts = token.split('.')
-      if (parts.length === 3) {
-        const payloadB64 = parts[1]
-        const padded = payloadB64 + '='.repeat((4 - payloadB64.length % 4) % 4)
-        const b64 = padded.replace(/-/g, '+').replace(/_/g, '/')
-        const payloadStr = atob(b64)
-        payload = JSON.parse(payloadStr)
-        console.log('[middleware] Dev fallback: decoded token for user', payload.username)
-      }
-    } catch {
-      // ignore
-    }
-  }
+  // SECURITY: No dev fallback — JWT must always be properly verified
 
   if (!payload) {
     return securityJsonResponse(
