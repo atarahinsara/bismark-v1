@@ -1,0 +1,22 @@
+{
+  "title": "Profile",
+  "subtitle": "Manage your account information",
+  "personalInfo": "Personal information",
+  "displayName": "Display name",
+  "email": "Email",
+  "phone": "Phone",
+  "avatarUrl": "Avatar URL",
+  "username": "Username",
+  "userType": "User type",
+  "status": "Status",
+  "lastLogin": "Last login",
+  "changePassword": "Change password",
+  "oldPassword": "Current password",
+  "newPassword": "New password",
+  "confirmPassword": "Confirm new password",
+  "updatePassword": "Update password",
+  "passwordChanged": "Password changed. Other sessions have been revoked.",
+  "wrongPassword": "Current password is incorrect",
+  "saveInfo": "Save info",
+  "infoSaved": "Information saved"
+}
