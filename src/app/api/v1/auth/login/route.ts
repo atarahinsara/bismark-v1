@@ -1,3 +1,4 @@
+import { db } from '@/lib/db'
 import { NextRequest } from 'next/server'
 import { jsonResponse, errorResponse } from '@/lib/api-helpers'
 import { login, AuthError } from '@/lib/auth'
