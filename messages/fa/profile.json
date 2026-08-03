@@ -1,0 +1,22 @@
+{
+  "title": "پروفایل",
+  "subtitle": "مدیریت اطلاعات حساب کاربری",
+  "personalInfo": "اطلاعات شخصی",
+  "displayName": "نام نمایشی",
+  "email": "ایمیل",
+  "phone": "شماره تلفن",
+  "avatarUrl": "آدرس تصویر پروفایل",
+  "username": "نام کاربری",
+  "userType": "نوع کاربر",
+  "status": "وضعیت",
+  "lastLogin": "آخرین ورود",
+  "changePassword": "تغییر رمز عبور",
+  "oldPassword": "رمز عبور فعلی",
+  "newPassword": "رمز عبور جدید",
+  "confirmPassword": "تکرار رمز عبور جدید",
+  "updatePassword": "به‌روزرسانی رمز عبور",
+  "passwordChanged": "رمز عبور با موفقیت تغییر کرد. سایر نشست‌ها قطع شدند.",
+  "wrongPassword": "رمز عبور فعلی نادرست است",
+  "saveInfo": "ذخیره اطلاعات",
+  "infoSaved": "اطلاعات ذخیره شد"
+}
