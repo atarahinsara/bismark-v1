@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthContext } from '@/lib/auth/auth-service'
+import { getAdminAuth } from '@/lib/admin-auth'
 import {
   getSettings,
   setSettings,
@@ -27,7 +27,7 @@ function isAdmin(roles: string[]): boolean {
  */
 export async function GET(req: NextRequest) {
   try {
-    const ctx = getAuthContext(req)
+    const ctx = await getAdminAuth(req)
     if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const ctx = getAuthContext(req)
+    const ctx = await getAdminAuth(req)
     if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
