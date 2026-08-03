@@ -1,4 +1,3 @@
-import { db } from '@/lib/db'
 import { NextRequest } from 'next/server'
 import { jsonResponse, errorResponse } from '@/lib/api-helpers'
 import { login, AuthError } from '@/lib/auth'
@@ -59,24 +58,6 @@ export async function POST(request: NextRequest) {
 
     const responseBody = JSON.stringify({ data: result })
     await IdempotencyHelper.store(request, responseBody, 200, rawBody)
-
-    // Audit log
-    try {
-      await db.auditLog.create({
-        data: {
-          tenantId: result.user.tenantId,
-          userId: result.user.id,
-          action: 'login',
-          entityType: 'Session',
-          entityId: result.user.id,
-          ipAddress: ipAddress || null,
-          userAgent: userAgent || null,
-          metadata: { username: body.username },
-        },
-      })
-    } catch (e) {
-      console.error('[audit] Login log failed:', e)
-    }
 
     return new Response(responseBody, {
       status: 200,
