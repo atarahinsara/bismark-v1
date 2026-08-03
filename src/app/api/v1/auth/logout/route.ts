@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
-import { jsonResponse, errorResponse } from '@/lib/api-helpers'
-import { logout, getAuthContext, AuthError } from '@/lib/auth'
-import { IdempotencyHelper } from '@/lib/shared'
+import { jsonResponse } from '@/lib/api-helpers'
+import { logout } from '@/lib/auth'
 
 /**
  * POST /api/v1/auth/logout
@@ -9,48 +8,39 @@ import { IdempotencyHelper } from '@/lib/shared'
  * Revokes the current session.
  * Requires: Bearer token (authenticated)
  *
+ * This route verifies JWT directly — does NOT depend on middleware x-auth-* headers.
+ * This makes logout resilient to middleware changes.
+ *
  * Response:
  *   200: { message: "Logged out successfully" }
  *   401: Not authenticated
  */
 export async function POST(request: NextRequest) {
   try {
-    const idempotent = await IdempotencyHelper.check(request)
-    if (idempotent.cached && idempotent.response) return idempotent.response
-
-    const authCtx = getAuthContext(request)
-    if (!authCtx) {
-      return errorResponse({
-        code: 'UNAUTHORIZED',
-        message: 'Not authenticated',
-        statusCode: 401,
-      })
-    }
-
-    // Extract token from Authorization header
+    // Extract token directly from Authorization header
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]
 
-    if (token) {
-      await logout(token)
+    if (!token) {
+      return jsonResponse(
+        { data: { message: 'Not authenticated' } },
+        401,
+      )
     }
 
-    const responseBody = JSON.stringify({ data: { message: 'Logged out successfully' } })
-    await IdempotencyHelper.store(request, responseBody, 200, '{}')
+    // Logout function verifies JWT and revokes session
+    await logout(token)
 
-    return new Response(responseBody, {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  } catch (e) {
-    if (e instanceof AuthError) {
-      return errorResponse({ code: e.code, message: e.message, statusCode: e.statusCode })
-    }
-    console.error('[auth/logout] error:', e)
-    return errorResponse({
-      code: 'INTERNAL_ERROR',
-      message: 'Logout failed',
-      statusCode: 500,
-    })
+    return jsonResponse(
+      { data: { message: 'Logged out successfully' } },
+      200,
+    )
+  } catch {
+    // Token is invalid or already expired — still return success
+    // (client should clear token regardless)
+    return jsonResponse(
+      { data: { message: 'Logged out successfully' } },
+      200,
+    )
   }
 }
