@@ -1,0 +1,20 @@
+{
+  "title": "Active sessions",
+  "subtitle": "Manage active login sessions for your account",
+  "currentSession": "Current session",
+  "ipAddress": "IP address",
+  "browser": "Browser",
+  "os": "OS",
+  "device": "Device",
+  "issuedAt": "Issued at",
+  "lastActivity": "Last activity",
+  "expiresAt": "Expires",
+  "revoke": "Revoke",
+  "revokeAll": "Revoke all other sessions",
+  "revokeConfirm": "Are you sure you want to revoke this session?",
+  "revokeAllConfirm": "Are you sure you want to revoke all other sessions?",
+  "revoked": "Session revoked",
+  "allRevoked": "{count} sessions revoked",
+  "noSessions": "No active sessions found",
+  "thisDevice": "This device"
+}
