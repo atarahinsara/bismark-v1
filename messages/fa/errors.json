@@ -1,0 +1,14 @@
+{
+  "invalidCredentials": "نام کاربری یا رمز عبور اشتباه است",
+  "accountLocked": "حساب شما قفل شده است",
+  "emailNotVerified": "لطفاً ابتدا ایمیل خود را تأیید کنید",
+  "weakPassword": "رمز عبور ضعیف است",
+  "usernameTaken": "این نام کاربری قبلاً استفاده شده است",
+  "emailTaken": "این ایمیل قبلاً ثبت شده است",
+  "invalidToken": "لینک نامعتبر یا استفاده شده است",
+  "rateLimited": "تعداد درخواست‌ها بیش از حد بوده",
+  "internalError": "خطای داخلی سرور",
+  "networkError": "خطای شبکه",
+  "forbidden": "دسترسی غیرمجاز",
+  "notFound": "مورد یافت نشد"
+}
