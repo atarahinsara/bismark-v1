@@ -57,32 +57,35 @@ export async function getSettingBool(key: string, defaultValue: boolean = false,
  * Upsert a setting.
  */
 export async function setSetting(input: SettingInput) {
-  return db.systemSetting.upsert({
-    where: {
-      tenantId_key: {
+  // Use findFirst + update/create instead of upsert
+  // because upsert doesn't work with NULL tenantId in compound unique key
+  const existing = await db.systemSetting.findFirst({
+    where: { key: input.key, tenantId: input.tenantId ?? null },
+  })
+
+  const data = {
+    value: input.value,
+    type: input.type || 'string',
+    category: input.category || 'general',
+    description: input.description,
+    isPublic: input.isPublic ?? false,
+    updatedBy: input.updatedBy,
+  }
+
+  if (existing) {
+    return db.systemSetting.update({
+      where: { id: existing.id },
+      data,
+    })
+  } else {
+    return db.systemSetting.create({
+      data: {
         tenantId: input.tenantId ?? null,
         key: input.key,
+        ...data,
       },
-    },
-    update: {
-      value: input.value,
-      type: input.type || 'string',
-      category: input.category || 'general',
-      description: input.description,
-      isPublic: input.isPublic ?? false,
-      updatedBy: input.updatedBy,
-    },
-    create: {
-      tenantId: input.tenantId ?? null,
-      key: input.key,
-      value: input.value,
-      type: input.type || 'string',
-      category: input.category || 'general',
-      description: input.description,
-      isPublic: input.isPublic ?? false,
-      updatedBy: input.updatedBy,
-    },
-  })
+    })
+  }
 }
 
 /**
