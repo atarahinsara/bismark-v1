@@ -169,24 +169,6 @@ export async function login(
     },
   })
 
-  // Audit log: record successful login
-  try {
-    await db.auditLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        action: 'login',
-        entityType: 'Session',
-        entityId: user.id,
-        ipAddress: ipAddress || null,
-        userAgent: userAgent || null,
-        metadata: { username: user.username },
-      },
-    })
-  } catch (e) {
-    console.error('[audit] Login log failed:', e)
-  }
-
   // T-2-17: MFA verification
   if (user.mfaEnabled) {
     if (!mfaToken) {
