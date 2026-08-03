@@ -1,0 +1,9 @@
+{
+  "title": "Warehouse",
+  "products": "Products",
+  "inventory": "Inventory",
+  "transfers": "Transfers",
+  "receive": "Receive Goods",
+  "serialNumbers": "Serial Numbers",
+  "stockBalance": "Stock Balance"
+}
