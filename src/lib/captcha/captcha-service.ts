@@ -26,7 +26,7 @@ export interface CaptchaConfig {
 }
 
 let cachedConfig: { config: CaptchaConfig | null; ts: number } = { config: null, ts: 0 }
-const CONFIG_CACHE_MS = 30_000 // 30 seconds
+const CONFIG_CACHE_MS = 5_000 // 5 seconds
 
 /**
  * Get captcha configuration from database.
