@@ -1,0 +1,20 @@
+{
+  "title": "نشست‌های فعال",
+  "subtitle": "مدیریت نشست‌های ورود فعال به حساب کاربری",
+  "currentSession": "نشست فعلی",
+  "ipAddress": "آدرس IP",
+  "browser": "مرورگر",
+  "os": "سیستم‌عامل",
+  "device": "دستگاه",
+  "issuedAt": "زمان شروع",
+  "lastActivity": "آخرین فعالیت",
+  "expiresAt": "انقضا",
+  "revoke": "قطع نشست",
+  "revokeAll": "قطع تمام نشست‌های دیگر",
+  "revokeConfirm": "آیا از قطع این نشست مطمئن هستید؟",
+  "revokeAllConfirm": "آیا از قطع تمام نشست‌های دیگر مطمئن هستید؟",
+  "revoked": "نشست قطع شد",
+  "allRevoked": "{count} نشست قطع شد",
+  "noSessions": "هیچ نشست فعالی یافت نشد",
+  "thisDevice": "این دستگاه"
+}
