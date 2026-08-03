@@ -1,0 +1,14 @@
+{
+  "invalidCredentials": "اسم المستخدم أو كلمة المرور غير صحيحة",
+  "accountLocked": "تم قفل حسابك",
+  "emailNotVerified": "يرجى تأكيد بريدك الإلكتروني أولاً",
+  "weakPassword": "كلمة المرور ضعيفة جداً",
+  "usernameTaken": "اسم المستخدم مستخدم بالفعل",
+  "emailTaken": "هذا البريد مسجل بالفعل",
+  "invalidToken": "رابط غير صالح أو مستخدم بالفعل",
+  "rateLimited": "طلبات كثيرة جداً",
+  "internalError": "خطأ داخلي في الخادم",
+  "networkError": "خطأ في الشبكة",
+  "forbidden": "وصول ممنوع",
+  "notFound": "غير موجود"
+}
