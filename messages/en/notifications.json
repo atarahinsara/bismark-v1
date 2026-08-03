@@ -1,0 +1,13 @@
+{
+  "title": "Notifications",
+  "subtitle": "Your in-app notifications",
+  "unread": "Unread",
+  "all": "All",
+  "markAllRead": "Mark all as read",
+  "markRead": "Mark as read",
+  "empty": "No notifications",
+  "emptyUnread": "No unread notifications",
+  "markedRead": "Notification marked as read",
+  "allMarkedRead": "{count} notifications marked as read",
+  "showUnreadOnly": "Show unread only"
+}
